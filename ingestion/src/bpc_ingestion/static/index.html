@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPC Jud · Painel de coleta</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #66737f;
+      --line: #dce3e8;
+      --paper: #ffffff;
+      --canvas: #f3f6f7;
+      --brand: #155e63;
+      --brand-dark: #0d4448;
+      --brand-soft: #e6f4f2;
+      --ok: #18794e;
+      --warn: #a15c00;
+      --bad: #b42318;
+      --shadow: 0 12px 35px rgba(20, 42, 50, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+    }
+    header {
+      padding: 26px clamp(20px, 5vw, 72px);
+      color: white;
+      background: linear-gradient(125deg, #0b3e42, #157078 68%, #27868a);
+      box-shadow: var(--shadow);
+    }
+    header .top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.04em; }
+    header p { margin: 5px 0 0; color: #d5eeee; }
+    header a { color: white; text-decoration: none; border-bottom: 1px solid #9bd0d2; }
+    main { width: min(1380px, calc(100% - 32px)); margin: 26px auto 60px; }
+    .statusbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--muted); }
+    .dot { width: 10px; height: 10px; border-radius: 99px; background: #aeb8be; }
+    .dot.online { background: #2bb673; box-shadow: 0 0 0 4px rgba(43,182,115,.14); }
+    .dot.offline { background: var(--bad); box-shadow: 0 0 0 4px rgba(180,35,24,.12); }
+    .metrics { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; }
+    .metric, .panel, .step { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+    .metric { padding: 18px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .metric strong { display: block; margin-top: 4px; font-size: 27px; letter-spacing: -.04em; }
+    h2 { margin: 0 0 16px; font-size: 19px; letter-spacing: -.02em; }
+    h3 { margin: 0 0 7px; font-size: 15px; }
+    .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 18px 0; }
+    .step { padding: 15px; position: relative; overflow: hidden; }
+    .step::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: #b9c3c8; }
+    .step.done::before { background: var(--ok); }
+    .step.active::before { background: #238b91; }
+    .step small { color: var(--muted); }
+    .step .number { font-size: 11px; font-weight: 800; color: var(--brand); letter-spacing: .1em; }
+    .layout { display: grid; grid-template-columns: minmax(450px, 1.1fr) minmax(420px, .9fr); gap: 18px; }
+    .panel { padding: 20px; margin-bottom: 18px; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .action { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: #fbfcfc; }
+    .action.full { grid-column: 1 / -1; }
+    label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 5px; }
+    input[type="number"], select { width: 100%; border: 1px solid #bdc8ce; border-radius: 8px; padding: 9px 10px; font: inherit; background: white; }
+    input:focus { outline: 2px solid rgba(21,94,99,.25); border-color: var(--brand); }
+    .checks { display: flex; flex-wrap: wrap; gap: 8px 13px; }
+    .checks label, .inline-check { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink); }
+    .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+    button { border: 0; border-radius: 9px; padding: 10px 14px; font: 700 13px/1.2 inherit; cursor: pointer; transition: .15s ease; }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { cursor: wait; opacity: .55; transform: none; }
+    .primary { color: white; background: var(--brand); margin-top: 14px; }
+    .primary:hover { background: var(--brand-dark); }
+    .secondary { color: var(--brand-dark); background: var(--brand-soft); margin-top: 14px; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .badge { display: inline-flex; align-items: center; border-radius: 99px; padding: 4px 9px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; background: #e8edf0; color: #50606b; }
+    .badge.executando, .badge.na_fila { background: #e1f3f4; color: #0d666b; }
+    .badge.concluida { background: #e3f5ea; color: var(--ok); }
+    .badge.falhou, .badge.interrompida { background: #fde9e7; color: var(--bad); }
+    pre { min-height: 250px; max-height: 470px; overflow: auto; margin: 14px 0 0; padding: 15px; border-radius: 10px; color: #d7e6e7; background: #122528; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+    .history { display: grid; gap: 8px; margin-top: 12px; }
+    .job { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; text-align: left; color: var(--ink); background: #f7f9fa; border: 1px solid var(--line); }
+    .job:hover { transform: none; border-color: #91aeb1; }
+    .job small { color: var(--muted); display: block; font-weight: 400; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 8px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    .empty { color: var(--muted); padding: 18px 0; }
+    .toast { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 13px 16px; color: white; background: #26383c; border-radius: 10px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transform: translateY(10px); transition: .2s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--bad); }
+    @media (max-width: 1000px) {
+      .metrics { grid-template-columns: repeat(3, 1fr); }
+      .steps { grid-template-columns: repeat(3, 1fr); }
+      .layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 650px) {
+      main { width: min(100% - 20px, 1380px); }
+      header { padding: 20px; }
+      .metrics, .steps, .actions { grid-template-columns: 1fr 1fr; }
+      .action.full { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="top">
+      <div><h1>BPC Jud</h1><p>Painel local de coleta e acompanhamento</p></div>
+      <a href="/docs" target="_blank">Documentação da API ↗</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="statusbar"><span id="health-dot" class="dot"></span><span id="health-text">Verificando serviços…</span></div>
+
+    <section class="metrics" aria-label="Resumo da base">
+      <div class="metric"><span>Processos</span><strong id="m-processos">—</strong></div>
+      <div class="metric"><span>Hits DataJud</span><strong id="m-registros">—</strong></div>
+      <div class="metric"><span>Movimentos</span><strong id="m-movimentos">—</strong></div>
+      <div class="metric"><span>Comunicações</span><strong id="m-comunicacoes">—</strong></div>
+      <div class="metric"><span>Referências TPU</span><strong id="m-tpu">—</strong></div>
+    </section>
+
+    <section class="steps" aria-label="Etapas da pipeline">
+      <div class="step" id="step-infra"><div class="number">PASSO 1</div><h3>Infraestrutura</h3><small>Banco, migrações e API</small></div>
+      <div class="step" id="step-tpu"><div class="number">PASSO 2</div><h3>Tabelas TPU</h3><small>Classes, assuntos e movimentos</small></div>
+      <div class="step" id="step-datajud"><div class="number">PASSO 3</div><h3>DataJud</h3><small>Processos e trajetórias</small></div>
+      <div class="step" id="step-pje"><div class="number">PASSO 4</div><h3>Comunica PJe</h3><small>Atos publicados por processo</small></div>
+      <div class="step" id="step-analysis"><div class="number">PASSO 5</div><h3>Análise</h3><small>Views e cobertura</small></div>
+    </section>
+
+    <div class="layout">
+      <div>
+        <section class="panel">
+          <h2>Executar operações</h2>
+          <div class="actions">
+            <form class="action full" id="datajud-form">
+              <h3>Coletar processos no DataJud</h3>
+              <label>Tribunais</label>
+              <div class="checks" id="tribunais">
+                <label><input type="checkbox" value="TRF1" checked> TRF1</label>
+                <label><input type="checkbox" value="TRF2"> TRF2</label>
+                <label><input type="checkbox" value="TRF3"> TRF3</label>
+                <label><input type="checkbox" value="TRF4"> TRF4</label>
+                <label><input type="checkbox" value="TRF5"> TRF5</label>
+                <label><input type="checkbox" value="TRF6"> TRF6</label>
+                <label><input type="checkbox" value="STJ"> STJ</label>
+              </div>
+              <div class="actions" style="margin-top:12px">
+                <div><label for="page-size">Registros por página</label><input id="page-size" type="number" min="10" max="1000" value="50"></div>
+                <div><label for="max-records">Limite por tribunal</label><input id="max-records" type="number" min="1" value="100" placeholder="Vazio = coleta completa"></div>
+              </div>
+              <div class="actions" style="margin-top:12px">
+                <div><label for="source-mode">Campos coletados</label><select id="source-mode"><option value="completo">Todos os campos públicos</option><option value="essencial">Somente campos essenciais</option></select></div>
+                <div><label class="inline-check" style="margin-top:32px"><input id="include-state-courts" type="checkbox"> Incluir 27 TJs (exploratório)</label></div>
+              </div>
+              <label class="inline-check" style="margin-top:12px"><input id="restart" type="checkbox"> Reiniciar o cursor dos tribunais selecionados</label>
+              <p class="hint">Para continuar uma coleta interrompida, deixe “reiniciar” desmarcado.</p>
+              <button class="primary operation" type="submit">Iniciar coleta DataJud</button>
+            </form>
+
+            <form class="action" id="pje-form">
+              <h3>Buscar no Comunica PJe</h3>
+              <label for="pje-limit">Processos neste lote</label>
+              <input id="pje-limit" type="number" min="1" max="10000" value="100">
+              <label class="inline-check" style="margin-top:12px"><input id="retry-errors" type="checkbox"> Repetir erros temporários</label>
+              <button class="primary operation" type="submit">Consultar publicações</button>
+            </form>
+
+            <div class="action">
+              <h3>Carregar tabelas TPU</h3>
+              <p class="hint">Importa ou atualiza as tabelas CNJ que já estão no repositório.</p>
+              <button class="secondary operation" id="tpu-button" type="button">Importar referências TPU</button>
+            </div>
+
+            <div class="action">
+              <h3>Descobrir dados oficiais do INSS</h3>
+              <p class="hint">Cataloga planilhas oficiais de benefícios sem fazer o download massivo.</p>
+              <button class="secondary operation" id="inss-button" type="button">Atualizar catálogo INSS</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Assuntos encontrados junto ao BPC</h2>
+          <p class="hint">Candidatos para ampliar a busca; valide juridicamente antes de incluí-los.</p>
+          <div style="overflow:auto">
+            <table>
+              <thead><tr><th>Código</th><th>Assunto</th><th>Hits</th></tr></thead>
+              <tbody id="related-table"><tr><td colspan="3" class="empty">Ainda não analisado.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="toolbar"><h2>Resultados por tribunal</h2><button class="secondary" id="refresh" type="button">Atualizar</button></div>
+          <div style="overflow:auto">
+            <table>
+              <thead><tr><th>Tribunal</th><th>Processos</th><th>Hits</th><th>Movimentos</th><th>Comunicações</th></tr></thead>
+              <tbody id="tribunal-table"><tr><td colspan="5" class="empty">Nenhum dado coletado.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div>
+        <section class="panel">
+          <div class="toolbar"><h2>Execução atual</h2><span class="badge" id="task-status">sem tarefa</span></div>
+          <p class="hint" id="task-meta">Inicie uma operação ou selecione uma tarefa no histórico.</p>
+          <pre id="task-log">Os passos e mensagens da próxima operação aparecerão aqui.</pre>
+        </section>
+
+        <section class="panel">
+          <h2>Histórico de tarefas</h2>
+          <div class="history" id="history"><div class="empty">Nenhuma tarefa registrada.</div></div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let selectedTask = null;
+    let pollHandle = null;
+    const $ = (id) => document.getElementById(id);
+    const number = (value) => new Intl.NumberFormat('pt-BR').format(value || 0);
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {headers: {'Content-Type': 'application/json'}, ...options});
+      if (!response.ok) {
+        let message = `Erro HTTP ${response.status}`;
+        try { const body = await response.json(); message = body.detail || message; } catch (_) {}
+        throw new Error(message);
+      }
+      return response.json();
+    }
+
+    function toast(message, error = false) {
+      const node = $('toast');
+      node.textContent = message;
+      node.className = `toast show${error ? ' error' : ''}`;
+      setTimeout(() => node.className = 'toast', 3800);
+    }
+
+    function markStep(id, done) { $(id).classList.toggle('done', Boolean(done)); }
+
+    async function refreshSummary() {
+      try {
+        await request('/health');
+        $('health-dot').className = 'dot online';
+        $('health-text').textContent = 'Banco e API online';
+        markStep('step-infra', true);
+        const data = await request('/resumo');
+        const t = data.totais;
+        $('m-processos').textContent = number(t.processos);
+        $('m-registros').textContent = number(t.registros_datajud);
+        $('m-movimentos').textContent = number(t.movimentos);
+        $('m-comunicacoes').textContent = number(t.comunicacoes_pje);
+        $('m-tpu').textContent = number(t.referencias_tpu);
+        markStep('step-tpu', t.referencias_tpu > 0);
+        markStep('step-datajud', t.registros_datajud > 0);
+        const queried = Object.values(data.cobertura_pje || {}).reduce((a, b) => a + b, 0);
+        markStep('step-pje', queried > 0);
+        markStep('step-analysis', t.registros_datajud > 0);
+        const tbody = $('tribunal-table');
+        tbody.innerHTML = data.tribunais.length ? data.tribunais.map(row => `
+          <tr><td>${row.tribunal || '—'}</td><td>${number(row.processos)}</td><td>${number(row.registros_datajud)}</td><td>${number(row.movimentos)}</td><td>${number(row.comunicacoes_pje)}</td></tr>
+        `).join('') : '<tr><td colspan="5" class="empty">Nenhum dado coletado.</td></tr>';
+        const related = await request('/analises/assuntos-relacionados?limit=15');
+        $('related-table').innerHTML = related.length ? related.map(row => `
+          <tr><td>${row.codigo}</td><td>${row.nome || '—'}</td><td>${number(row.registros)}</td></tr>
+        `).join('') : '<tr><td colspan="3" class="empty">Nenhum assunto adicional encontrado.</td></tr>';
+      } catch (error) {
+        $('health-dot').className = 'dot offline';
+        $('health-text').textContent = `Serviço indisponível: ${error.message}`;
+      }
+    }
+
+    function setBusy(busy) { document.querySelectorAll('.operation').forEach(button => button.disabled = busy); }
+
+    async function startTask(endpoint, payload) {
+      try {
+        const task = await request(endpoint, {method: 'POST', body: payload === undefined ? undefined : JSON.stringify(payload)});
+        selectedTask = task.id;
+        toast('Tarefa iniciada. Acompanhe os passos no log.');
+        await refreshTask();
+        await refreshHistory();
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function refreshTask() {
+      if (!selectedTask) return;
+      try {
+        const task = await request(`/tarefas/${selectedTask}`);
+        $('task-status').textContent = task.status.replace('_', ' ');
+        $('task-status').className = `badge ${task.status}`;
+        $('task-meta').textContent = `${task.tipo} · criada em ${new Date(task.criado_em).toLocaleString('pt-BR')}`;
+        const log = $('task-log');
+        const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 35;
+        log.textContent = task.log || 'Aguardando mensagens…';
+        if (atBottom) log.scrollTop = log.scrollHeight;
+        const running = ['na_fila', 'executando'].includes(task.status);
+        setBusy(running);
+        document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+        if (running) {
+          const map = {tpu: 'step-tpu', datajud: 'step-datajud', comunica_pje: 'step-pje', inss_catalogo: 'step-analysis'};
+          if (map[task.tipo]) $(map[task.tipo]).classList.add('active');
+        } else {
+          selectedTask = null;
+          await refreshSummary();
+          await refreshHistory();
+        }
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function refreshHistory() {
+      try {
+        const tasks = await request('/tarefas?limit=12');
+        const history = $('history');
+        history.innerHTML = tasks.length ? tasks.map(task => `
+          <button class="job" type="button" data-id="${task.id}">
+            <span><strong>${task.tipo}</strong><small>${new Date(task.criado_em).toLocaleString('pt-BR')}</small></span>
+            <span class="badge ${task.status}">${task.status.replace('_', ' ')}</span>
+          </button>`).join('') : '<div class="empty">Nenhuma tarefa registrada.</div>';
+        history.querySelectorAll('.job').forEach(button => button.addEventListener('click', async () => {
+          selectedTask = button.dataset.id;
+          await refreshTask();
+        }));
+        const active = tasks.find(task => ['na_fila', 'executando'].includes(task.status));
+        if (active && !selectedTask) { selectedTask = active.id; await refreshTask(); }
+        setBusy(Boolean(active));
+      } catch (error) { toast(error.message, true); }
+    }
+
+    $('datajud-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const tribunais = [...document.querySelectorAll('#tribunais input:checked')].map(input => input.value);
+      if (!tribunais.length) return toast('Selecione ao menos um tribunal.', true);
+      const rawLimit = $('max-records').value.trim();
+      if (!rawLimit && !confirm('Sem limite, a coleta pode demorar muitas horas. Deseja continuar?')) return;
+      await startTask('/tarefas/datajud', {
+        tribunais,
+        page_size: Number($('page-size').value),
+        max_records: rawLimit ? Number(rawLimit) : null,
+        restart: $('restart').checked,
+        source_mode: $('source-mode').value,
+        include_state_courts: $('include-state-courts').checked
+      });
+    });
+    $('pje-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await startTask('/tarefas/comunica', {limit: Number($('pje-limit').value), retry_errors: $('retry-errors').checked});
+    });
+    $('tpu-button').addEventListener('click', () => startTask('/tarefas/importar-tpu'));
+    $('inss-button').addEventListener('click', () => startTask('/tarefas/catalogar-inss'));
+    $('refresh').addEventListener('click', async () => { await refreshSummary(); await refreshHistory(); toast('Dados atualizados.'); });
+
+    async function boot() {
+      await refreshSummary();
+      await refreshHistory();
+      pollHandle = setInterval(async () => { await refreshTask(); }, 1200);
+      setInterval(refreshSummary, 10000);
+    }
+    boot();
+  </script>
+</body>
+</html>

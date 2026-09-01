@@ -1,0 +1,63 @@
+name: bpc-jud
+
+x-app: &app
+  image: bpc-jud-app:local
+  build:
+    context: ./ingestion
+  env_file:
+    - path: ./.env
+      required: false
+  environment:
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-bpc}:${POSTGRES_PASSWORD:-bpc}@db:5432/${POSTGRES_DB:-bpc}
+    RAW_DATA_DIR: /app/data/raw
+    DATAJUD_CHECKPOINT_FILE: /app/data/state/datajud-checkpoints.json
+  volumes:
+    - ./data:/app/data
+    - ./datajud/datajud/tb_CNJ/BANCO:/app/resources/tpu:ro
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.6-pg18-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bpc}
+      POSTGRES_USER: ${POSTGRES_USER:-bpc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bpc}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bpc} -d ${POSTGRES_DB:-bpc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *app
+    command: ["uvicorn", "bpc_ingestion.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  ingestion:
+    <<: *app
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "bpc_ingestion"]
+    command: []
+
+volumes:
+  postgres_data:

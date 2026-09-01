@@ -1,0 +1,6 @@
+[submodule "datajud/datajud"]
+	path = datajud/datajud
+	url = https://gitlab.com/0rakul0/datajud.git
+[submodule "jeferson/bpc-loas"]
+	path = jeferson/bpc-loas
+	url = https://gitlab.com/0rakul0/bpc-loas.git

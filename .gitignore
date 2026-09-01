@@ -1,0 +1,26 @@
+.env
+data/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/*.egg-info/
+ingestion/.state/
+
+# Bancos, checkpoints e arquivos temporarios locais
+*.db
+*.sqlite
+*.sqlite3
+*.log
+ingestion/tmp*/
+
+# Coletas e exportacoes legadas: podem conter dados pessoais e sao grandes
+datajud/datajud/LAKE/
+datajud/datajud/tb_CNJ/LAKE/
+datajud/datajud/tb_CNJ/OUTPUT/
+jeferson/bpc-loas/dados_trfs/
+
+# IDE e sistema operacional
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
