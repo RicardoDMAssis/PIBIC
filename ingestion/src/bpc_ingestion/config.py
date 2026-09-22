@@ -19,17 +19,20 @@ ASSUNTOS_BPC = (6114, 11946, 11947)
 @dataclass(frozen=True)
 class Settings:
     datajud_api_key: str | None = None
+    transparencia_api_token: str | None = None
     database_url: str = "postgresql+psycopg://bpc:bpc@localhost:5432/bpc"
     raw_data_dir: str = "data/raw"
     datajud_base_url: str = "https://api-publica.datajud.cnj.jus.br"
     comunica_base_url: str = "https://comunicaapi.pje.jus.br/api/v1/comunicacao"
     checkpoint_file: str = ".state/datajud-checkpoints.json"
     inss_catalog_api_url: str = "https://dadosabertos.inss.gov.br/api/3/action"
+    transparencia_base_url: str = "https://api.portaldatransparencia.gov.br/api-de-dados"
 
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
             datajud_api_key=os.getenv("DATAJUD_API_KEY"),
+            transparencia_api_token=os.getenv("PORTAL_TRANSPARENCIA_API_TOKEN"),
             database_url=os.getenv(
                 "DATABASE_URL", "postgresql+psycopg://bpc:bpc@localhost:5432/bpc"
             ),
@@ -47,9 +50,18 @@ class Settings:
             inss_catalog_api_url=os.getenv(
                 "INSS_CATALOG_API_URL", "https://dadosabertos.inss.gov.br/api/3/action"
             ).rstrip("/"),
+            transparencia_base_url=os.getenv(
+                "PORTAL_TRANSPARENCIA_BASE_URL",
+                "https://api.portaldatransparencia.gov.br/api-de-dados",
+            ).rstrip("/"),
         )
 
     def require_datajud_key(self) -> str:
         if not self.datajud_api_key:
             raise ValueError("DATAJUD_API_KEY e obrigatoria para a coleta DataJud")
         return self.datajud_api_key
+
+    def require_transparencia_token(self) -> str:
+        if not self.transparencia_api_token:
+            raise ValueError("PORTAL_TRANSPARENCIA_API_TOKEN é obrigatório para esta coleta")
+        return self.transparencia_api_token

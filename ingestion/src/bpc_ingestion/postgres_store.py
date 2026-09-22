@@ -18,6 +18,7 @@ from .models import (
     ColetaRegistroDatajud,
     ComunicacaoPje,
     ConsultaPje,
+    IndicadorBpcMunicipio,
     Movimento,
     Processo,
     RegistroAssunto,
@@ -145,6 +146,30 @@ class PostgresStore:
                     )
                 )
         return len(resources)
+
+    def upsert_bpc_municipio(self, indicators: list[dict[str, Any]], run_id: str) -> int:
+        now = datetime.now(timezone.utc)
+        with self.Session.begin() as session:
+            for indicator in indicators:
+                statement = insert(IndicadorBpcMunicipio).values(
+                    **indicator,
+                    coleta_id=uuid.UUID(run_id),
+                    coletado_em=now,
+                )
+                session.execute(statement.on_conflict_do_update(
+                    constraint="uq_indicador_bpc_municipio",
+                    set_={
+                        "data_referencia": statement.excluded.data_referencia,
+                        "municipio_nome": statement.excluded.municipio_nome,
+                        "uf": statement.excluded.uf,
+                        "quantidade_beneficiados": statement.excluded.quantidade_beneficiados,
+                        "valor": statement.excluded.valor,
+                        "payload": statement.excluded.payload,
+                        "coleta_id": statement.excluded.coleta_id,
+                        "coletado_em": statement.excluded.coletado_em,
+                    },
+                ))
+        return len(indicators)
 
     @staticmethod
     def _upsert_record(session: Session, document: dict[str, Any], process_id: int) -> int:

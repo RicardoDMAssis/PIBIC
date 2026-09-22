@@ -19,6 +19,7 @@ from .inss import InssCatalogClient
 from .persistence import agora_iso
 from .postgres_store import PostgresStore
 from .sqlite_store import SqliteStore
+from .transparencia import TransparenciaClient, meses_no_periodo, normalizar_indicador
 
 
 LOGGER = logging.getLogger("bpc_ingestion")
@@ -31,9 +32,22 @@ def construir_parser() -> argparse.ArgumentParser:
     datajud = commands.add_parser("datajud", help="Coleta processos BPC no DataJud")
     datajud.add_argument("--tribunais", nargs="+", default=list(TRIBUNAIS_PADRAO))
     datajud.add_argument("--page-size", type=int, default=200)
+    datajud.add_argument(
+        "--assuntos", nargs="+", type=int, default=list(ASSUNTOS_BPC),
+        help="Subconjunto dos assuntos BPC 6114, 11946 e 11947",
+    )
     datajud.add_argument("--max-records", type=int, help="Limite por tribunal para piloto")
     datajud.add_argument("--restart", action="store_true", help="Reinicia os cursores selecionados")
     datajud.add_argument("--source-mode", choices=("completo", "essencial"), default="completo")
+    datajud.add_argument(
+        "--municipio-codigos", nargs="+", type=int,
+        help="Códigos de município do órgão julgador no DataJud (ex.: 743 para Brasília)",
+    )
+    datajud.add_argument("--graus", nargs="+", choices=("G1", "G2", "JE", "TR"))
+    datajud.add_argument(
+        "--ano-ajuizamento", type=int,
+        help="Restringe a coleta a processos ajuizados neste ano; usa checkpoint separado",
+    )
     datajud.add_argument("--include-state-courts", action="store_true")
     datajud.add_argument("--storage", choices=("postgres", "sqlite"), default="postgres")
     datajud.add_argument("--sqlite-path", default="data/bpc_analytics.sqlite3")
@@ -52,6 +66,13 @@ def construir_parser() -> argparse.ArgumentParser:
     inss = commands.add_parser("catalogar-inss", help="Cataloga recursos oficiais do INSS")
     inss.add_argument("--query", default="beneficios")
     inss.add_argument("--rows", type=int, default=100)
+    transparencia = commands.add_parser(
+        "transparencia-bpc", help="Coleta indicadores mensais agregados de BPC por município"
+    )
+    transparencia.add_argument("--municipios", nargs="+", required=True)
+    transparencia.add_argument("--mes-inicial", type=int, required=True)
+    transparencia.add_argument("--mes-final", type=int, required=True)
+    transparencia.add_argument("--interval", type=float, default=0.5)
     return parser
 
 
@@ -65,10 +86,20 @@ def _validate_tribunals(values: list[str]) -> list[str]:
 
 def collect_datajud(args: argparse.Namespace, settings: Settings) -> int:
     tribunals = _validate_tribunals(args.tribunais)
+    assuntos = sorted(set(args.assuntos))
+    if not assuntos or set(assuntos) - set(ASSUNTOS_BPC):
+        raise ValueError("Use apenas os assuntos BPC 6114, 11946 e 11947")
     if args.include_state_courts:
         tribunals = list(dict.fromkeys([*tribunals, *TRIBUNAIS_ESTADUAIS]))
-    query_id = query_fingerprint(ASSUNTOS_BPC, args.source_mode)
-    manifest = query_manifest(ASSUNTOS_BPC, args.source_mode)
+    municipios = args.municipio_codigos or []
+    graus = args.graus or []
+    if any(code < 1 for code in municipios):
+        raise ValueError("Códigos de município devem ser positivos")
+    ano = args.ano_ajuizamento
+    if ano is not None and not 1900 <= ano <= 2100:
+        raise ValueError("Ano de ajuizamento deve estar entre 1900 e 2100")
+    query_id = query_fingerprint(assuntos, args.source_mode, municipios, graus, ano)
+    manifest = query_manifest(assuntos, args.source_mode, municipios, graus, ano)
     client = DatajudClient(
         settings.datajud_base_url,
         settings.require_datajud_key(),
@@ -88,12 +119,15 @@ def collect_datajud(args: argparse.Namespace, settings: Settings) -> int:
                     "datajud",
                     tribunal,
                     {
-                        "assuntos": list(ASSUNTOS_BPC),
+                        "assuntos": assuntos,
                         "page_size": args.page_size,
                         "max_records": args.max_records,
                         "cursor_inicial": cursor,
                         "query_id": query_id,
                         "query_manifest": manifest,
+                        "orgao_julgador_municipio_codigos": municipios,
+                        "graus": graus,
+                        "ano_ajuizamento": ano,
                     },
                 )
                 if postgres
@@ -106,9 +140,12 @@ def collect_datajud(args: argparse.Namespace, settings: Settings) -> int:
                     raw_path = str(bronze.path)
                     for page in client.iter_pages(
                         tribunal,
-                        ASSUNTOS_BPC,
+                        assuntos,
                         search_after=cursor,
                         max_records=args.max_records,
+                        municipio_codigos=municipios,
+                        graus=graus,
+                        ano_ajuizamento=ano,
                     ):
                         collected_at = agora_iso()
                         bronze.write_many([hit.raw_document() for hit in page.hits])
@@ -201,6 +238,53 @@ def import_tpu(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def collect_transparencia_bpc(args: argparse.Namespace, settings: Settings) -> int:
+    municipios = list(dict.fromkeys(args.municipios))
+    if not municipios or any(len(code) != 7 or not code.isdigit() for code in municipios):
+        raise ValueError("Use códigos IBGE de município com 7 dígitos")
+    meses = meses_no_periodo(args.mes_inicial, args.mes_final)
+    if len(meses) * len(municipios) > 120:
+        raise ValueError("Limite de 120 combinações município/mês por execução")
+    if args.interval < 0:
+        raise ValueError("Intervalo deve ser não negativo")
+    client = TransparenciaClient(
+        settings.transparencia_base_url,
+        settings.require_transparencia_token(),
+        interval=args.interval,
+    )
+    store = PostgresStore(settings.database_url)
+    run_id = store.start_collection(
+        "transparencia_bpc", "municipios",
+        {"municipios": municipios, "mes_inicial": meses[0], "mes_final": meses[-1]},
+    )
+    total = 0
+    raw_path: str | None = None
+    try:
+        with BronzeWriter(settings.raw_data_dir, "transparencia_bpc", "municipios", run_id) as bronze:
+            raw_path = str(bronze.path)
+            for codigo in municipios:
+                for mes in meses:
+                    pagina = 1
+                    while True:
+                        if pagina > 1000:
+                            raise RuntimeError("Paginação da Transparência excedeu 1000 páginas")
+                        items = client.fetch_page(mes, codigo, pagina)
+                        bronze.write(items)
+                        if not items:
+                            break
+                        indicators = [normalizar_indicador(item, mes, codigo) for item in items]
+                        total += store.upsert_bpc_municipio(indicators, run_id)
+                        LOGGER.info("BPC %s/%s página %d: %d registros", codigo, mes, pagina, len(items))
+                        pagina += 1
+        store.finish_collection(run_id, "concluida", total, raw_path)
+    except Exception as exc:
+        store.finish_collection(run_id, "falhou", total, raw_path, str(exc))
+        raise
+    finally:
+        store.close()
+    return 0
+
+
 def catalog_inss(args: argparse.Namespace, settings: Settings) -> int:
     store = PostgresStore(settings.database_url)
     run_id = store.start_collection(
@@ -233,6 +317,8 @@ def executar(argv: Sequence[str] | None = None) -> int:
         return import_tpu(args, settings)
     if args.command == "catalogar-inss":
         return catalog_inss(args, settings)
+    if args.command == "transparencia-bpc":
+        return collect_transparencia_bpc(args, settings)
     raise AssertionError(f"Comando inesperado: {args.command}")
 
 

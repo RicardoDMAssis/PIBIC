@@ -107,12 +107,14 @@
   <header>
     <div class="top">
       <div><h1>BPC Jud</h1><p>Painel local de coleta e acompanhamento</p></div>
-      <a href="/docs" target="_blank">Documentação da API ↗</a>
+      <div><a href="/admin/processos">Explorar processos →</a> &nbsp; <a href="/docs" target="_blank">Documentação da API ↗</a></div>
     </div>
   </header>
 
   <main>
     <div class="statusbar"><span id="health-dot" class="dot"></span><span id="health-text">Verificando serviços…</span></div>
+
+    <section class="panel"><div class="toolbar"><div><h2>O que existe em cada processo?</h2><p class="hint">Pesquise o número CNJ, veja assuntos e movimentações do DataJud, textos de atos publicados no Comunica PJe e eventuais extrações de IA. O painel indica quando não há classificação de decisão.</p></div><a class="secondary" href="/admin/processos" style="padding:10px 14px;border-radius:9px;white-space:nowrap;text-decoration:none">Abrir explorador →</a></div></section>
 
     <section class="metrics" aria-label="Resumo da base">
       <div class="metric"><span>Processos</span><strong id="m-processos">—</strong></div>
@@ -147,6 +149,12 @@
                 <label><input type="checkbox" value="TRF6"> TRF6</label>
                 <label><input type="checkbox" value="STJ"> STJ</label>
               </div>
+              <label>Assuntos CNJ da busca</label>
+              <div class="checks" id="assuntos">
+                <label><input type="checkbox" value="6114" checked> 6114</label>
+                <label><input type="checkbox" value="11946" checked> 11946</label>
+                <label><input type="checkbox" value="11947" checked> 11947</label>
+              </div>
               <div class="actions" style="margin-top:12px">
                 <div><label for="page-size">Registros por página</label><input id="page-size" type="number" min="10" max="1000" value="50"></div>
                 <div><label for="max-records">Limite por tribunal</label><input id="max-records" type="number" min="1" value="100" placeholder="Vazio = coleta completa"></div>
@@ -156,6 +164,9 @@
                 <div><label class="inline-check" style="margin-top:32px"><input id="include-state-courts" type="checkbox"> Incluir 27 TJs (exploratório)</label></div>
               </div>
               <label class="inline-check" style="margin-top:12px"><input id="restart" type="checkbox"> Reiniciar o cursor dos tribunais selecionados</label>
+              <label class="inline-check" style="margin-top:12px"><input id="only-df" type="checkbox"> Restringir a órgãos julgadores de Brasília/DF (código DataJud 743)</label>
+              <label class="inline-check" style="margin-top:12px"><input id="first-instance" type="checkbox" checked> Somente 1º grau e Juizados Especiais Federais (G1/JE)</label>
+              <p class="hint">Este filtro cobre o local do órgão julgador, não o município de residência da parte. A RIDE inclui municípios de GO/MG e exige mapeamento próprio.</p>
               <p class="hint">Para continuar uma coleta interrompida, deixe “reiniciar” desmarcado.</p>
               <button class="primary operation" type="submit">Iniciar coleta DataJud</button>
             </form>
@@ -336,15 +347,20 @@
     $('datajud-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const tribunais = [...document.querySelectorAll('#tribunais input:checked')].map(input => input.value);
+      const assuntos = [...document.querySelectorAll('#assuntos input:checked')].map(input => Number(input.value));
       if (!tribunais.length) return toast('Selecione ao menos um tribunal.', true);
+      if (!assuntos.length) return toast('Selecione ao menos um assunto.', true);
       const rawLimit = $('max-records').value.trim();
       if (!rawLimit && !confirm('Sem limite, a coleta pode demorar muitas horas. Deseja continuar?')) return;
       await startTask('/tarefas/datajud', {
         tribunais,
+        assuntos,
         page_size: Number($('page-size').value),
         max_records: rawLimit ? Number(rawLimit) : null,
         restart: $('restart').checked,
         source_mode: $('source-mode').value,
+        municipio_codigos: $('only-df').checked ? [743] : [],
+        graus: $('first-instance').checked ? ['G1', 'JE'] : [],
         include_state_courts: $('include-state-courts').checked
       });
     });

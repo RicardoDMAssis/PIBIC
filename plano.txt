@@ -1,0 +1,66 @@
+JUDICIALIZAÇÃO DO BENEFÍCIO DE PRESTAÇÃO CONTINUADA NO DISTRITO FEDERAL E RIDE: DESENVOLVIMENTO DE INFRAESTRUTURA DE COLETA E ANÁLISE AUTOMATIZADA DE PROCESSOS JUDICIAIS COM INTELIGÊNCIA ARTIFICIAL
+Projeto de Pesquisa — Modalidade PIDTI
+a) Tema e Delimitação do Estudo
+O presente projeto tem como tema a judicialização do Benefício de Prestação Continuada (BPC/LOAS) no âmbito do Tribunal Regional Federal da Primeira Região (TRF1). O estudo se delimita aos processos judiciais de concessão do benefício que tramitam nas varas e Juizados Especiais Federais (JEFs) com competência sobre o Distrito Federal e a Região Integrada de Desenvolvimento do Entorno (RIDE), excluindo demandas de revisão de valores ou cessação do benefício.
+b) Definição do Problema
+Quais são os padrões de judicialização do Benefício de Prestação Continuada no Distrito Federal e RIDE — em termos de perfil socioeconômico dos requerentes, motivações para o ajuizamento, argumentação jurídica utilizada e fatores associados ao resultado processual — e como esses padrões podem ser identificados e analisados em escala por meio de técnicas computacionais e inteligência artificial?
+c) Hipóteses
+H1. A principal causa de judicialização é a negativa ou morosidade administrativa do INSS — indeferimento de perícias médicas e socioeconômicas —, e não a ausência de direito material do requerente.
+H2. Há desigualdade nos resultados processuais correlacionada com características socioeconômicas dos requerentes (escolaridade, raça/cor, município de residência, tipo de representação jurídica).
+H3. Requerentes assistidos pela Defensoria Pública apresentam perfil socioeconômico mais vulnerável, mas resultados processuais similares ou superiores aos assistidos por advogados particulares.
+H4. É possível construir um pipeline automatizado capaz de coletar, estruturar e analisar esses processos com custo computacional viável para pesquisa acadêmica.
+d) Objetivos
+Objetivo Geral
+Desenvolver um sistema computacional de coleta e análise automatizada de processos judiciais do BPC/LOAS no TRF1 (DF e RIDE) e utilizá-lo para investigar os padrões de judicialização, os determinantes do resultado processual e o perfil socioeconômico dos requerentes.
+Objetivos Específicos
+1. Desenvolver um módulo de webscraping para coleta sistemática de processos BPC/LOAS no sistema e-Proc/TRF1;
+2. Projetar e implementar uma base de dados para armazenamento e recuperação eficiente dos documentos coletados;
+3. Calcular métricas processuais agregadas: duração média, índice de ganho de causa, índice de recurso e taxa de concessão;
+4. Aplicar modelos de linguagem de grande escala (LLMs) com implantação local para extração automatizada de: motivação do ajuizamento, argumentos jurídicos e características socioeconômicas dos requerentes;
+5. Analisar a correlação entre perfil socioeconômico dos requerentes e o resultado processual e disponibilizar os resultados em plataforma pública de dashboards interativos, com o código-fonte aberto no GitHub para replicação por outros pesquisadores e tribunais.
+e) Justificativa
+O BPC é o principal benefício da assistência social brasileira, garantido pela LOAS (Lei n.º 8.742/1993) a idosos acima de 65 anos e pessoas com deficiência em situação de extrema pobreza. Apesar de sua relevância constitucional, o acesso ao benefício é crescentemente mediado pelo Judiciário. Dados do IPEA (Castro e Jesus, 2018) revelam que, entre 2008 e 2015, a proporção de concessões judiciais de BPC no TRF1 saltou de aproximadamente 9% para 19% do total de benefícios concedidos, e as despesas decorrentes de cumprimento de decisões judiciais (precatórios e RPVs) triplicaram entre 2010 e 2015, passando de R$ 291 milhões para R$ 879 milhões. Somente no TRF1, entre 2009 e 2017, foram distribuídos 229.054 processos de concessão de BPC na primeira instância, dos quais 7.088 tramitaram na seção judiciária do Distrito Federal.
+O DF apresenta padrões peculiares que justificam o recorte regional: segundo Castro e Jesus (2018, Tabela 8), a duração média processual no DF é de 455 dias para processos BPC — acima da média de aproximadamente 390 dias para o conjunto do TRF1 —, tornando-o uma das seções judiciárias com menor celeridade da região. A taxa de procedência no DF é de 60,4% (Castro e Jesus, 2018), significativamente superior à média do tribunal, sugerindo tanto ineficiência na via administrativa quanto elevada pertinência das demandas que chegam ao Judiciário. O relatório Justiça em Números 2023 (CNJ) aponta ações de direito assistencial entre os assuntos mais recorrentes da Justiça Federal, contexto que motivou o lançamento do programa 'Desjudicializa Prev' (AGU/CNJ, 2024).
+A despeito desse volume e impacto fiscal, há escassez de pesquisa sistemática sobre os padrões, causas e determinantes dos resultados dessa judicialização no DF e RIDE — especialmente com uso de métodos computacionais e inteligência artificial, que permitem análise em escala impossível por métodos manuais.
+A contribuição tecnológica do projeto (PIDTI) consiste no desenvolvimento de um pipeline de coleta e análise automatizada de processos judiciais do TRF1, inédito no contexto regional, combinando webscraping, armazenamento estruturado e LLMs com implantação local em conformidade com a LGPD (Lei n.º 13.709/2018). A contribuição científica e social reside na geração de evidências empíricas sobre quem são os requerentes do BPC que recorrem ao Judiciário no DF/RIDE, por que recorrem e quais fatores determinam o sucesso de suas demandas — informações com potencial direto de subsidiar políticas públicas de aprimoramento da via administrativa do INSS e de acesso à justiça na região. Os produtos finais — pipeline open-source no GitHub e plataforma pública de dashboards interativos — garantem replicabilidade e impacto além do período da IC.
+f) Discussão Teórico-Metodológica
+O projeto situa-se no campo da jurimetria — disciplina que aplica métodos estatísticos e computacionais ao estudo do fenômeno jurídico (Zabala; Silveira, 2014) — e da análise computacional de políticas públicas, especificamente da abordagem text-as-data (Grimmer; Roberts; Stewart, 2022), que trata documentos jurídicos como corpus analisável em escala por algoritmos. Aplicada ao BPC, essa combinação permite identificar padrões que estudos qualitativos ou amostras manuais não conseguem revelar, posicionando o projeto no campo emergente de Direito e Tecnologia (Law & Technology). O sistema IpeaJus (Castro; Jesus, 2018) constitui o principal precedente metodológico; este projeto se distingue por: (i) aplicar LLMs para análise de conteúdo das peças processuais — e não apenas metadados —; (ii) adotar implantação local dos modelos para conformidade com a LGPD; e (iii) produzir uma plataforma pública de visualização voltada ao DF/RIDE.
+Módulo 1 — Infraestrutura de Coleta e Armazenamento (meses 1–6)
+Desenvolvimento de um pipeline de coleta automatizada do portal público e-Proc/TRF1, com ênfase em webscraping direto da interface de consulta processual. A identificação dos processos será feita via consulta por assunto processual (código CNJ para BPC/LOAS) e navegação programática nas páginas de resultados do portal, com coleta incremental para acompanhar novos processos distribuídos — estratégia análoga à adotada pelo sistema IpeaJus (Castro; Jesus, 2018). Serão coletados metadados processuais (classe, assunto, datas de distribuição e sentença, movimentos), dados das partes (autor, representação jurídica) e inteiro teor das sentenças. A arquitetura de armazenamento será definida pelos orientandos com base em revisão da literatura especializada em recuperação de informação jurídica.
+Módulo 2 — Análise Computacional com IA (meses 5–11)
+A partir do corpus coletado, serão calculadas métricas processuais clássicas (duração média, taxa de procedência, índice de recorribilidade, taxa de reforma em segundo grau), desagregadas por subseção judiciária, ano e tipo de representação jurídica. Para análise de conteúdo, serão utilizados modelos de linguagem de grande escala (LLMs) com implantação local — em razão da sensibilidade dos dados pessoais presentes nas peças processuais e das exigências da LGPD (Lei n.º 13.709/2018) — para extração de: (i) motivação do ajuizamento (morosidade ou indeferimento administrativo, contestação de perícia médica, contestação de avaliação socioeconômica, outros); (ii) argumentos jurídicos utilizados; (iii) características socioeconômicas dos requerentes inferidas das peças (idade, deficiência declarada, município, tipo de representação jurídica, e demais atributos disponíveis). As técnicas específicas de armazenamento, recuperação e análise estatística serão selecionadas pelos orientandos ao longo do processo de pesquisa, conforme revisão bibliográfica e adequação ao corpus obtido.
+Os resultados serão disponibilizados em plataforma pública de dashboards interativos e o código-fonte publicado em repositório GitHub open-source, garantindo transparência, replicabilidade e potencial de extensão da pesquisa a outros tribunais e regiões.
+Aspectos Éticos e de Privacidade
+Os processos judiciais do TRF1 são públicos e de acesso irrestrito. Dados pessoais presentes nas peças (nomes, CPF, endereços) serão tratados exclusivamente em ambiente local, sem transmissão a serviços externos, em conformidade com a LGPD. A plataforma pública de dashboards e o repositório GitHub divulgarão apenas dados agregados e anonimizados. O projeto será submetido ao Comitê de Ética em Pesquisa (CEP) da UnDF previamente ao início da coleta, para verificação da necessidade de revisão ética nos termos da Resolução CNS n.º 510/2016.
+g) Cronograma
+O projeto terá duração de 12 meses, conforme tabela a seguir:
+
+Mês
+Atividades
+1–2
+Revisão bibliográfica (judicialização do BPC, jurimetria, NLP jurídico, LGPD); mapeamento da estrutura do portal e-Proc/TRF1 e definição da estratégia de webscraping; configuração do repositório GitHub open-source.
+3–4
+Desenvolvimento do módulo de coleta (scraping e-Proc/TRF1); testes e validação dos metadados coletados; versionamento contínuo no GitHub.
+5–6
+Implementação da base de armazenamento; ingestão do corpus inicial; cálculo das métricas processuais agregadas. Entrega intermediária: relatório de métricas + protótipo inicial do dashboard.
+7–8
+Configuração e testes dos LLMs locais; desenvolvimento e validação dos prompts de extração (motivação, argumentos, perfil socioeconômico); anotação manual de amostra para avaliação de qualidade.
+9–10
+Execução da análise em larga escala; análise de correlação entre perfil socioeconômico e resultado processual; desenvolvimento do dashboard interativo com visualizações das métricas e análises.
+11
+Implantação pública da plataforma de dashboards; redação do artigo científico e do relatório final de IC; documentação completa do repositório GitHub.
+12
+Revisão e submissão do artigo; apresentação dos resultados; entrega do relatório final. Produto final: pipeline open-source + plataforma pública de visualização.
+
+
+h) Referências
+BRASIL. Lei n.º 8.742, de 7 de dezembro de 1993. Dispõe sobre a organização da Assistência Social e dá outras providências (Lei Orgânica da Assistência Social — LOAS). Diário Oficial da União, Brasília, DF, 8 dez. 1993.
+BRASIL. Lei n.º 13.709, de 14 de agosto de 2018. Lei Geral de Proteção de Dados Pessoais (LGPD). Diário Oficial da União, Brasília, DF, 15 ago. 2018.
+CASTRO, Alexandre Samy de; JESUS, Leonardo Araujo de. Judicialização de Pedidos de Benefício de Prestação Continuada e Aposentadoria Rural — TRF-1. Nota Técnica n.º 9, Astec/Presidência. Brasília: IPEA, dez. 2018.
+CONSELHO NACIONAL DE JUSTIÇA. Justiça em Números 2023. Brasília: CNJ, 2023.
+GRIMMER, Justin; ROBERTS, Margaret E.; STEWART, Brandon M. Text as Data: A New Framework for Machine Learning and the Social Sciences. Princeton: Princeton University Press, 2022.
+INSTITUTO BRASILEIRO DE DIREITO PREVIDENCIÁRIO. Nota Técnica n.º 04/2024: O Acordo 'Desjudicializa Prev'. Curitiba: IBDP, 2024.
+JESUS, Leonardo Araujo de et al. Judicialização dos Pedidos de Benefício de Prestação Continuada e Aposentadoria Rural — Justiça Federal da 2.ª Região. Nota Técnica n.º 8, Astec/Presidência. Brasília: IPEA, dez. 2018.
+MELO, Lúsis Jasmin Silva de; HECKTHEUER, Pedro Abib. A judicialização das demandas administrativas do BPC/LOAS. Revista Ibero-Americana de Humanidades, Ciências e Educação, v. 10, n. 6, 2024.
+QWEN TEAM. Qwen3 Technical Report. Hangzhou: Alibaba Cloud, 2025. Disponível em: https://arxiv.org/abs/2505.09388.
+ZABALA, Filipe Jaeger; SILVEIRA, Fabiano Feijó. Jurimetria: estatística aplicada ao direito. Direito & Justiça, Porto Alegre, v. 40, n. 1, p. 119–123, jan./jun. 2014.

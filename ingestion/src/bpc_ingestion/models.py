@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
@@ -14,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -135,6 +137,28 @@ class RecursoExterno(Base):
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class IndicadorBpcMunicipio(Base):
+    __tablename__ = "indicadores_bpc_municipio"
+    __table_args__ = (
+        UniqueConstraint("fonte", "mes_ano", "codigo_ibge", "tipo_id", name="uq_indicador_bpc_municipio"),
+        Index("ix_indicadores_bpc_municipio_local_periodo", "codigo_ibge", "mes_ano"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    fonte: Mapped[str] = mapped_column(String(30), nullable=False)
+    mes_ano: Mapped[int] = mapped_column(Integer, nullable=False)
+    data_referencia: Mapped[date] = mapped_column(Date, nullable=False)
+    codigo_ibge: Mapped[str] = mapped_column(String(7), nullable=False)
+    municipio_nome: Mapped[str | None] = mapped_column(Text)
+    uf: Mapped[str | None] = mapped_column(String(2))
+    tipo_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    quantidade_beneficiados: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    coleta_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("coletas.id"), nullable=False)
+    coletado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Assunto(Base):

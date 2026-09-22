@@ -19,9 +19,10 @@ uso posterior de IA com validação humana.
 - Enriquecimento por número processual no Comunica PJe.
 - Importação das referências TPU existentes no repositório.
 - Catálogo automático de arquivos oficiais do INSS.
+- Indicadores mensais agregados de BPC por município da CGU/Portal da Transparência.
 - Painel web para executar e acompanhar todas as operações.
 - Proveniência por coleta, checkpoint versionado e camada Bronze comprimida.
-- Suíte automatizada com 20 testes.
+- Suíte automatizada com 31 testes.
 
 ## Arquitetura
 
@@ -40,7 +41,9 @@ embeddings. A camada Bronze conserva as respostas originais para auditoria e
 reprocessamento. Cada hit DataJud é associado à execução que o observou.
 
 Mais detalhes estão em [docs/ARQUITETURA.md](docs/ARQUITETURA.md) e
-[docs/CONTRATOS.md](docs/CONTRATOS.md).
+[docs/CONTRATOS.md](docs/CONTRATOS.md). O recorte DF/RIDE e a avaliação das
+fontes estão em [docs/ESCOPO_PESQUISA.md](docs/ESCOPO_PESQUISA.md). Os pilotos
+de fontes sem credencial estão em [docs/FONTES_ABERTAS.md](docs/FONTES_ABERTAS.md).
 
 ## Tecnologias
 
@@ -77,6 +80,7 @@ docker compose up --build -d db api
 Abra:
 
 - Painel: <http://localhost:8000/>
+- Explorador de processos: <http://localhost:8000/admin/processos>
 - Documentação da API: <http://localhost:8000/docs>
 - Verificação de saúde: <http://localhost:8000/health>
 
@@ -90,6 +94,8 @@ O painel permite:
 4. Buscar publicações no Comunica PJe.
 5. Atualizar o catálogo oficial de recursos do INSS.
 6. Examinar cobertura e assuntos encontrados junto aos códigos BPC.
+7. Pesquisar cada processo, abrir seus registros DataJud, movimentações, atos
+   publicados no Comunica PJe e eventuais extrações de IA, com origem explícita.
 
 Comece sempre com um limite pequeno. A opção dos 27 TJs é exploratória e pode
 gerar uma coleta extensa.
@@ -111,6 +117,17 @@ docker compose run --rm ingestion datajud `
   --max-records 100 `
   --restart
 ```
+
+Para o recorte inicial de órgãos de Brasília em primeiro grau e JEF:
+
+```powershell
+docker compose run --rm ingestion datajud `
+  --tribunais TRF1 --municipio-codigos 743 --graus G1 JE `
+  --page-size 100 --max-records 1000
+```
+
+O código `743` refere-se ao município do órgão julgador no DataJud; não
+identifica a residência do requerente nem cobre sozinho toda a RIDE.
 
 ### Piloto no STJ
 
@@ -157,6 +174,22 @@ docker compose run --rm ingestion catalogar-inss
 Esse comando registra metadados, formatos e URLs oficiais; ele não baixa todas
 as planilhas automaticamente.
 
+### Coletar indicadores municipais de BPC
+
+Com `PORTAL_TRANSPARENCIA_API_TOKEN` preenchido no `.env`:
+
+```powershell
+docker compose run --rm ingestion transparencia-bpc `
+  --municipios 5300108 --mes-inicial 202601 --mes-final 202607
+```
+
+Use códigos IBGE de sete dígitos; cada execução aceita até 120 combinações de
+município e mês. A coleta preserva as páginas originais na camada Bronze e
+atualiza, sem duplicar, `indicadores_bpc_municipio`. São quantidades de
+beneficiados e valores mensais agregados, não concessões novas, pessoas
+identificáveis ou resultados de processos. O município desse indicador não é
+necessariamente o município do órgão julgador no DataJud.
+
 ### Consultar o resumo
 
 ```powershell
@@ -168,6 +201,8 @@ docker compose run --rm ingestion resumo
 - `GET /resumo`
 - `GET /processos?tribunal=TRF1&limit=50`
 - `GET /processos/{numero_cnj}`
+- `GET /admin/api/processos?numero=...&tribunal=TRF1&limit=25&offset=0`
+- `GET /admin/api/processos/{numero_cnj}`
 - `GET /analises/cobertura-comunica`
 - `GET /analises/assuntos-relacionados`
 - `GET /fontes/inss`
@@ -235,11 +270,12 @@ docker compose run --rm --entrypoint python ingestion `
 - [Endpoints DataJud](https://datajud-wiki.cnj.jus.br/api-publica/endpoints/)
 - [Padrões de API do PJe](https://docs.pje.jus.br/manuais-basicos/padroes-de-api-do-pje/)
 - [Dados Abertos do INSS](https://www.gov.br/inss/pt-br/acesso-a-informacao/dados-abertos/dados-abertos)
+- [API do Portal da Transparência](https://portaldatransparencia.gov.br/api-de-dados)
 
 ## Próximos passos
 
 - Baixar e normalizar apenas os conjuntos do INSS relevantes ao BPC.
-- Incorporar indicadores municipais do IBGE/SIDRA e do MDS.
+- Avaliar indicadores municipais complementares do IBGE/SIDRA e do MDS.
 - Produzir camada analítica Gold, com uma linha por processo/coorte.
 - Construir taxonomia de eventos a partir das TPUs.
 - Validar extrações assistidas por IA em amostra anotada.

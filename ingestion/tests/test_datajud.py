@@ -80,6 +80,16 @@ class NormalizacaoTest(unittest.TestCase):
 
 
 class PaginacaoTest(unittest.TestCase):
+    @patch("bpc_ingestion.datajud.time.sleep")
+    @patch("bpc_ingestion.datajud.urlopen")
+    def test_timeout_tem_retenta_e_erro_legivel(self, open_url, sleep):
+        open_url.side_effect = TimeoutError("read timed out")
+        client = DatajudClient("https://example.test", "key", max_retries=1)
+        with self.assertRaisesRegex(RuntimeError, "Falha de rede ao consultar TRF1"):
+            client._search("TRF1", {"query": {"match_all": {}}})
+        self.assertEqual(open_url.call_count, 2)
+        sleep.assert_called_once()
+
     @patch.object(DatajudClient, "_search")
     def test_search_after_usa_cursor_da_ultima_resposta(self, search):
         search.side_effect = [
@@ -122,6 +132,42 @@ class PaginacaoTest(unittest.TestCase):
         self.assertNotEqual(
             query_fingerprint([6114], "completo"),
             query_fingerprint([6114], "essencial"),
+        )
+
+    @patch.object(DatajudClient, "_search")
+    def test_filtro_municipio_e_checkpoint_distintos(self, search):
+        search.return_value = {"hits": {"hits": []}}
+        client = DatajudClient("https://example.test", "key", page_size=10)
+        list(client.iter_pages(
+            "TRF1", [6114, 11946, 11947], municipio_codigos=[743], graus=["G1", "JE"]
+        ))
+        body = search.call_args.args[1]
+        self.assertEqual(
+            body["query"]["bool"]["must"][1],
+            {"terms": {"orgaoJulgador.codigoMunicipioIBGE": [743]}},
+        )
+        self.assertEqual(body["query"]["bool"]["must"][2], {"terms": {"grau.keyword": ["G1", "JE"]}})
+        self.assertNotEqual(
+            query_fingerprint([6114, 11946, 11947], "completo"),
+            query_fingerprint([6114, 11946, 11947], "completo", [743]),
+        )
+        self.assertNotEqual(
+            query_fingerprint([6114, 11946, 11947], "completo", [743]),
+            query_fingerprint([6114, 11946, 11947], "completo", [743], ["G1", "JE"]),
+        )
+
+    @patch.object(DatajudClient, "_search")
+    def test_ano_ajuizamento_restringe_busca_e_checkpoint(self, search):
+        search.return_value = {"hits": {"hits": []}}
+        client = DatajudClient("https://example.test", "key", page_size=10)
+        list(client.iter_pages("TRF1", [11946], ano_ajuizamento=2023))
+        self.assertIn(
+            {"range": {"dataAjuizamento": {"gte": "20230101000000", "lt": "20240101000000"}}},
+            search.call_args.args[1]["query"]["bool"]["must"],
+        )
+        self.assertNotEqual(
+            query_fingerprint([11946], "completo"),
+            query_fingerprint([11946], "completo", ano_ajuizamento=2023),
         )
 
     @patch.object(DatajudClient, "_search")

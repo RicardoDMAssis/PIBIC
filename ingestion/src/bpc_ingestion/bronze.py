@@ -20,7 +20,7 @@ class BronzeWriter:
         self._file = gzip.open(self.path, "at", encoding="utf-8")
         return self
 
-    def write(self, document: dict[str, Any]) -> None:
+    def write(self, document: Any) -> None:
         if self._file is None:
             raise RuntimeError("BronzeWriter precisa ser usado como context manager")
         self._file.write(json.dumps(document, ensure_ascii=False, separators=(",", ":")))

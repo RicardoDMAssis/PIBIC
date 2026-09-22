@@ -26,6 +26,10 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(request.tribunais, ["STJ"])
         self.assertTrue(request.include_state_courts)
 
+    def test_rejects_subject_outside_bpc_scope(self):
+        with self.assertRaises(ValidationError):
+            DatajudTaskRequest(assuntos=[1234])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Processos · BPC Jud</title>
+  <style>
+    :root { font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #17212b; background: #f3f6f7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { padding: 22px max(20px, calc((100vw - 1400px)/2)); background: #104c51; color: white; }
+    header a { color: #d8f4f0; }
+    header h1 { margin: 7px 0 0; font-size: 29px; }
+    header p { margin: 2px 0; color: #d8eeec; }
+    main { max-width: 1440px; margin: 24px auto; padding: 0 20px 50px; }
+    .card { background: white; border: 1px solid #dce3e8; border-radius: 13px; padding: 20px; margin-bottom: 18px; box-shadow: 0 8px 28px #142a3210; }
+    .intro { color: #52636d; max-width: 920px; }
+    .stats { display: grid; grid-template-columns: repeat(5, minmax(120px,1fr)); gap: 10px; }
+    .stat { padding: 14px; border: 1px solid #dce3e8; border-radius: 10px; }
+    .stat small { display: block; color: #52636d; }
+    .stat strong { font-size: 24px; }
+    form { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    label { display: grid; gap: 4px; color: #52636d; font-size: 13px; }
+    input, select, button { font: inherit; border-radius: 8px; padding: 9px 11px; }
+    input, select { border: 1px solid #b8c8ce; background: white; min-height: 42px; }
+    input[type=search] { min-width: 270px; }
+    button { border: 0; background: #155e63; color: white; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    .secondary { color: #155e63; background: #e6f4f2; }
+    .layout { display: grid; grid-template-columns: minmax(390px, .85fr) minmax(0, 1.15fr); gap: 18px; align-items: start; }
+    h2 { font-size: 20px; margin: 0 0 12px; }
+    h3 { font-size: 16px; margin: 0 0 8px; }
+    .muted { color: #63727b; }
+    .message { margin: 12px 0; color: #63727b; }
+    .error { color: #a32920; }
+    .process-list { display: grid; gap: 8px; }
+    .process-row { width: 100%; text-align: left; background: #f7faf9; color: #17212b; border: 1px solid #dce3e8; }
+    .process-row:hover, .process-row.selected { border-color: #155e63; background: #edf8f6; }
+    .process-row strong, .process-row small { display: block; }
+    .process-row small { margin-top: 3px; color: #52636d; font-weight: 400; }
+    .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; gap: 8px; }
+    .detail-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; align-items: start; }
+    .pill { display: inline-block; color: #155e63; background: #e6f4f2; border-radius: 999px; padding: 3px 8px; font-size: 12px; }
+    .notice { background: #fff7e7; border-left: 4px solid #bb7a20; padding: 11px 13px; margin: 14px 0; }
+    .section { border-top: 1px solid #dce3e8; padding-top: 15px; margin-top: 19px; }
+    .entry { border: 1px solid #dce3e8; border-radius: 9px; padding: 12px; margin: 9px 0; overflow-wrap: anywhere; }
+    .entry p { margin: 6px 0; }
+    .facts { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
+    .facts div { overflow-wrap: anywhere; }
+    .facts small { display: block; color: #63727b; }
+    .events { max-height: 450px; overflow: auto; }
+    .event { padding: 9px 2px; border-bottom: 1px solid #e7edef; }
+    .event small { color: #63727b; }
+    .text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; background: #f7faf9; padding: 12px; border-radius: 8px; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 470px; overflow: auto; font-size: 12px; background: #13272a; color: #dceeed; padding: 14px; border-radius: 8px; }
+    details summary { cursor: pointer; font-weight: 600; }
+    a { color: #155e63; }
+    @media(max-width: 900px) { .layout { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(3,1fr); } }
+    @media(max-width: 550px) { .stats { grid-template-columns: repeat(2,1fr); } .facts { grid-template-columns: 1fr; } input[type=search] { min-width: 0; width: 100%; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Voltar ao painel de coleta</a>
+    <h1>Explorador de processos</h1>
+    <p>Veja o que foi coletado, de qual fonte veio e quais análises existem para cada processo.</p>
+  </header>
+  <main>
+    <div class="card">
+      <div class="stats" id="stats"></div>
+      <p class="intro">Um processo pode ter vários registros DataJud, por grau ou índice. Uma comunicação publicada pode trazer texto de uma decisão, mas não equivale ao conjunto completo dos autos. O resultado jurídico só aparece abaixo quando houver uma extração de IA registrada e identificada.</p>
+    </div>
+    <div class="card">
+      <form id="filters">
+        <label>Número CNJ ou início<input id="number-filter" type="search" placeholder="Ex.: 0001234-56.2024.4.01.3400"></label>
+        <label>Tribunal<select id="tribunal-filter"><option value="">Todos</option><option>TRF1</option><option>TRF2</option><option>TRF3</option><option>TRF4</option><option>TRF5</option><option>TRF6</option><option>STJ</option></select></label>
+        <label>Órgão julgador<select id="municipio-filter"><option value="">Todas as localidades</option><option value="743">Brasília/DF (DataJud 743)</option></select></label>
+        <label>Grau<select id="grau-filter"><option value="">Todos</option><option value="G1">1º grau (G1)</option><option value="JE">Juizado (JE)</option><option value="G2">2º grau (G2)</option><option value="TR">Turma recursal (TR)</option></select></label>
+        <label>Comunicação<select id="communication-filter"><option value="">Todas</option><option value="true">Com publicação</option><option value="false">Sem publicação</option></select></label>
+        <button type="submit">Buscar</button>
+      </form>
+    </div>
+    <div class="layout">
+      <section class="card" aria-label="Lista de processos">
+        <h2>Processos no banco</h2>
+        <p id="list-status" class="message">Carregando…</p>
+        <div class="process-list" id="process-list"></div>
+        <div class="pager"><button id="previous" class="secondary" type="button">Anterior</button><span id="page-label"></span><button id="next" class="secondary" type="button">Próxima</button></div>
+      </section>
+      <section class="card" aria-label="Detalhes do processo">
+        <div id="detail" class="message">Selecione um processo para ver seus dados.</div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const fmt = value => new Intl.NumberFormat('pt-BR').format(value ?? 0);
+    const when = value => value ? new Date(value).toLocaleString('pt-BR') : 'Não informado';
+    const state = {offset: 0, limit: 25, total: 0, selected: null};
+    const el = (tag, text, className) => { const node = document.createElement(tag); if (text != null) node.textContent = String(text); if (className) node.className = className; return node; };
+    const add = (parent, tag, text, className) => { const node = el(tag, text, className); parent.append(node); return node; };
+    async function get(url) { const response = await fetch(url); if (!response.ok) { let reason = `HTTP ${response.status}`; try { reason = (await response.json()).detail || reason; } catch {} throw new Error(reason); } return response.json(); }
+    function fact(parent, label, value) { const box = add(parent, 'div'); add(box, 'small', label); add(box, 'span', value ?? 'Não informado'); }
+    function empty(parent, text) { add(parent, 'p', text, 'muted'); }
+    function raw(parent, payload) { const details = add(parent, 'details'); add(details, 'summary', 'Ver payload original'); add(details, 'pre', JSON.stringify(payload ?? {}, null, 2)); }
+    async function loadStats() {
+      try {
+        const data = await get('/resumo'); const t = data.totais; const stats = $('stats'); stats.replaceChildren();
+        [['Processos únicos', t.processos], ['Registros DataJud', t.registros_datajud], ['Movimentações', t.movimentos], ['Publicações', t.comunicacoes_pje], ['Extrações de IA', t.extracoes_ia]].forEach(([label, value]) => {
+          const card = add(stats, 'div', null, 'stat'); add(card, 'small', label); add(card, 'strong', fmt(value));
+        });
+      } catch (error) { $('stats').textContent = `Não foi possível consultar o resumo: ${error.message}`; }
+    }
+    async function loadList() {
+      const params = new URLSearchParams({limit: state.limit, offset: state.offset});
+      const number = $('number-filter').value.trim(), tribunal = $('tribunal-filter').value, communication = $('communication-filter').value;
+      const municipio = $('municipio-filter').value, grau = $('grau-filter').value;
+      if (number) params.set('numero', number);
+      if (tribunal) params.set('tribunal', tribunal);
+      if (municipio) params.set('municipio_codigo', municipio);
+      if (grau) params.set('grau', grau);
+      if (communication) params.set('com_comunicacao', communication);
+      $('list-status').textContent = 'Buscando processos…'; $('list-status').className = 'message';
+      try {
+        const data = await get(`/admin/api/processos?${params}`); state.total = data.total;
+        const list = $('process-list'); list.replaceChildren();
+        data.items.forEach(item => {
+          const button = add(list, 'button', null, 'process-row' + (item.numero_processo === state.selected ? ' selected' : ''));
+          button.type = 'button'; add(button, 'strong', item.numero_processo);
+          add(button, 'small', `${item.tribunais || 'Tribunal não informado'} · ${fmt(item.registros_datajud)} registro(s) DataJud · ${fmt(item.comunicacoes_pje)} publicação(ões) · ${fmt(item.extracoes_ia)} extração(ões)`);
+          button.addEventListener('click', () => loadDetail(item.numero_processo));
+        });
+        $('list-status').textContent = data.total ? `${fmt(data.total)} processo(s) encontrados` : 'Nenhum processo encontrado com esses filtros.';
+        $('page-label').textContent = data.total ? `${fmt(state.offset + 1)}–${fmt(state.offset + data.items.length)} de ${fmt(data.total)}` : '0 de 0';
+        $('previous').disabled = state.offset === 0;
+        $('next').disabled = state.offset + data.items.length >= data.total;
+      } catch (error) { $('list-status').textContent = `Não foi possível listar processos: ${error.message}`; $('list-status').className = 'message error'; }
+    }
+    async function loadDetail(number) {
+      state.selected = number; $('detail').textContent = 'Carregando processo…';
+      document.querySelectorAll('.process-row').forEach(node => node.classList.toggle('selected', node.querySelector('strong')?.textContent === number));
+      try { renderDetail(await get(`/admin/api/processos/${encodeURIComponent(number)}`)); history.replaceState(null, '', `#${encodeURIComponent(number)}`); }
+      catch (error) { $('detail').textContent = `Não foi possível abrir o processo: ${error.message}`; $('detail').className = 'message error'; }
+    }
+    function renderDetail(data) {
+      const root = $('detail'); root.className = ''; root.replaceChildren();
+      const head = add(root, 'div', null, 'detail-head'); add(head, 'h2', data.numero_processo); add(head, 'span', `${data.registros_datajud.length} registro(s) DataJud`, 'pill');
+      const notice = add(root, 'div', null, 'notice');
+      notice.textContent = data.extracoes_ia.length ? 'Há extrações registradas abaixo. Confira o texto de origem e o status de validação antes de interpretar o resultado.' : 'Não há resultado jurídico extraído neste processo. Uma movimentação “Sentença” sozinha não indica concessão ou negativa.';
+
+      const recordSection = add(root, 'section', null, 'section'); add(recordSection, 'h3', 'Dados do DataJud');
+      if (!data.registros_datajud.length) empty(recordSection, 'Nenhum registro DataJud associado.');
+      data.registros_datajud.forEach(record => {
+        const card = add(recordSection, 'article', null, 'entry'); add(card, 'h3', `${record.tribunal || 'Tribunal desconhecido'} · ${record.grau || 'Grau não informado'}`);
+        const facts = add(card, 'div', null, 'facts');
+        fact(facts, 'Classe', `${record.classe.codigo ?? '—'} · ${record.classe.nome || 'Não informada'}`);
+        fact(facts, 'Órgão julgador', record.orgao_julgador.nome || 'Não informado');
+        fact(facts, 'Ajuizamento', when(record.data_ajuizamento));
+        fact(facts, 'Última atualização no DataJud', when(record.data_ultima_atualizacao));
+        fact(facts, 'Sigilo', record.nivel_sigilo === 0 ? 'Público' : record.nivel_sigilo ?? 'Não informado');
+        fact(facts, 'Coletado em', when(record.coletado_em));
+        add(card, 'p', `Assuntos: ${record.assuntos.map(item => `${item.codigo} · ${item.nome || 'sem nome'}`).join('; ') || 'não informados'}`);
+        const events = add(card, 'details'); add(events, 'summary', `${fmt(record.movimentacoes.length)} movimentação(ões)`);
+        const list = add(events, 'div', null, 'events');
+        record.movimentacoes.forEach(item => { const row = add(list, 'div', null, 'event'); add(row, 'small', when(item.data_hora)); add(row, 'div', `${item.codigo ?? '—'} · ${item.nome || 'Sem nome'}`); if (item.complementos?.length) add(row, 'small', `Complementos: ${JSON.stringify(item.complementos)}`); });
+        raw(card, record.payload_original);
+      });
+
+      const commSection = add(root, 'section', null, 'section'); add(commSection, 'h3', 'Comunica PJe: atos publicados');
+      const consult = data.consulta_comunica;
+      add(commSection, 'p', consult ? `Consulta: ${consult.status} · ${when(consult.consultado_em)} · ${fmt(consult.quantidade)} item(ns)${consult.erro ? ` · erro: ${consult.erro}` : ''}` : 'Ainda não há consulta ao Comunica PJe registrada.');
+      if (!data.comunicacoes_pje.length) empty(commSection, 'Nenhuma publicação vinculada a este número no banco.');
+      data.comunicacoes_pje.forEach(item => {
+        const card = add(commSection, 'article', null, 'entry'); add(card, 'h3', `${item.tipo_documento || item.tipo_comunicacao || 'Ato publicado'} · ${item.data_disponibilizacao || 'Data não informada'}`);
+        add(card, 'p', item.orgao_nome || 'Órgão não informado', 'muted');
+        if (item.texto) add(card, 'div', item.texto, 'text'); else empty(card, 'O texto da publicação não foi recebido.');
+        if (item.link) { try { const url = new URL(item.link); if (['https:', 'http:'].includes(url.protocol)) { const link = add(card, 'a', 'Abrir publicação original ↗'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; } } catch {} }
+        raw(card, item.payload_original);
+      });
+
+      const extractionSection = add(root, 'section', null, 'section'); add(extractionSection, 'h3', 'Dados extraídos por IA');
+      if (!data.extracoes_ia.length) empty(extractionSection, 'Nenhuma extração de IA registrada. Ainda não há classificação de decisão ou resultado jurídico no banco para este processo.');
+      data.extracoes_ia.forEach(item => {
+        const card = add(extractionSection, 'article', null, 'entry'); add(card, 'h3', `${item.tipo_extracao} · ${item.status_validacao}`);
+        add(card, 'p', `Modelo ${item.modelo} · prompt ${item.versao_prompt} · confiança ${item.confianca ?? 'não informada'} · ${when(item.criado_em)}`, 'muted');
+        add(card, 'pre', JSON.stringify(item.resultado, null, 2));
+      });
+      const chunks = add(root, 'section', null, 'section'); add(chunks, 'h3', `Trechos preparados para IA (${data.documento_chunks.length})`);
+      if (!data.documento_chunks.length) empty(chunks, 'Nenhum trecho de publicação processado.');
+      data.documento_chunks.forEach(item => { const card = add(chunks, 'article', null, 'entry'); add(card, 'p', `Publicação ${item.comunicacao_id} · trecho ${item.numero_chunk} · ${item.modelo_embedding} / ${item.versao_pipeline}`, 'muted'); add(card, 'div', item.texto, 'text'); });
+    }
+    $('filters').addEventListener('submit', event => { event.preventDefault(); state.offset = 0; loadList(); });
+    $('previous').addEventListener('click', () => { state.offset = Math.max(0, state.offset - state.limit); loadList(); });
+    $('next').addEventListener('click', () => { state.offset += state.limit; loadList(); });
+    loadStats(); loadList();
+    if (location.hash.length > 1) loadDetail(decodeURIComponent(location.hash.slice(1)));
+  </script>
+</body>
+</html>

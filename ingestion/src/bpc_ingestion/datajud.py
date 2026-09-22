@@ -33,21 +33,35 @@ SOURCE_FIELDS = (
 QUERY_VERSION = "datajud-bpc-v2"
 
 
-def query_manifest(assuntos: Sequence[int], source_mode: str) -> dict[str, Any]:
+def query_manifest(
+    assuntos: Sequence[int], source_mode: str, municipio_codigos: Sequence[int] = (),
+    graus: Sequence[str] = (), ano_ajuizamento: int | None = None,
+) -> dict[str, Any]:
     if source_mode not in {"completo", "essencial"}:
         raise ValueError("source_mode deve ser 'completo' ou 'essencial'")
-    return {
+    manifest = {
         "versao": QUERY_VERSION,
         "assuntos": sorted(int(code) for code in assuntos),
         "source_mode": source_mode,
         "source_fields": None if source_mode == "completo" else list(SOURCE_FIELDS),
         "sort": ["@timestamp:asc", "id.keyword:asc"],
     }
+    if municipio_codigos:
+        manifest["orgao_julgador_municipio_codigos"] = sorted(set(int(code) for code in municipio_codigos))
+    if graus:
+        manifest["graus"] = sorted(set(graus))
+    if ano_ajuizamento is not None:
+        manifest["ano_ajuizamento"] = ano_ajuizamento
+    return manifest
 
 
-def query_fingerprint(assuntos: Sequence[int], source_mode: str) -> str:
+def query_fingerprint(
+    assuntos: Sequence[int], source_mode: str, municipio_codigos: Sequence[int] = (),
+    graus: Sequence[str] = (), ano_ajuizamento: int | None = None,
+) -> str:
     canonical = json.dumps(
-        query_manifest(assuntos, source_mode), sort_keys=True, separators=(",", ":")
+        query_manifest(assuntos, source_mode, municipio_codigos, graus, ano_ajuizamento),
+        sort_keys=True, separators=(",", ":"),
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
@@ -204,9 +218,10 @@ class DatajudClient:
             except HTTPError as exc:
                 if exc.code not in (429, 500, 502, 503, 504) or attempt == self.max_retries:
                     raise RuntimeError(f"Datajud retornou HTTP {exc.code} para {tribunal}") from exc
-            except URLError as exc:
+            except (URLError, TimeoutError) as exc:
                 if attempt == self.max_retries:
-                    raise RuntimeError(f"Falha de rede ao consultar {tribunal}: {exc.reason}") from exc
+                    reason = getattr(exc, "reason", exc)
+                    raise RuntimeError(f"Falha de rede ao consultar {tribunal}: {reason}") from exc
             time.sleep(min(2**attempt, 30))
         raise AssertionError("loop de retentativas terminou inesperadamente")
 
@@ -216,6 +231,9 @@ class DatajudClient:
         assuntos: Sequence[int],
         search_after: Sequence[Any] | None = None,
         max_records: int | None = None,
+        municipio_codigos: Sequence[int] = (),
+        graus: Sequence[str] = (),
+        ano_ajuizamento: int | None = None,
     ) -> Iterator[SearchPage]:
         cursor = list(search_after) if search_after is not None else None
         emitted = 0
@@ -223,9 +241,23 @@ class DatajudClient:
             remaining = None if max_records is None else max_records - emitted
             if remaining is not None and remaining <= 0:
                 return
+            subject_query: dict[str, Any] = {
+                "terms": {"assuntos.codigo": list(assuntos)}
+            }
+            filters = [subject_query]
+            if municipio_codigos:
+                filters.append({"terms": {"orgaoJulgador.codigoMunicipioIBGE": list(municipio_codigos)}})
+            if graus:
+                filters.append({"terms": {"grau.keyword": list(graus)}})
+            if ano_ajuizamento is not None:
+                filters.append({"range": {"dataAjuizamento": {
+                    "gte": f"{ano_ajuizamento}0101000000",
+                    "lt": f"{ano_ajuizamento + 1}0101000000",
+                }}})
+            query = {"bool": {"must": filters}} if len(filters) > 1 else subject_query
             body: dict[str, Any] = {
                 "size": self.page_size if remaining is None else min(self.page_size, remaining),
-                "query": {"terms": {"assuntos.codigo": list(assuntos)}},
+                "query": query,
                 "sort": [
                     {"@timestamp": {"order": "asc"}},
                     {"id.keyword": {"order": "asc"}},
@@ -263,11 +295,17 @@ class DatajudClient:
         assuntos: Sequence[int],
         max_records: int | None = None,
         search_after: Sequence[Any] | None = None,
+        municipio_codigos: Sequence[int] = (),
+        graus: Sequence[str] = (),
+        ano_ajuizamento: int | None = None,
     ) -> Iterator[dict[str, Any]]:
         for page in self.iter_pages(
             tribunal,
             assuntos,
             search_after=search_after,
             max_records=max_records,
+            municipio_codigos=municipio_codigos,
+            graus=graus,
+            ano_ajuizamento=ano_ajuizamento,
         ):
             yield from page.sources
