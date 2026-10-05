@@ -10,6 +10,8 @@ ingestion/.state/
 *.db
 *.sqlite
 *.sqlite3
+*.dump
+!transferencia/bpc-jud.dump
 *.log
 ingestion/tmp*/
 

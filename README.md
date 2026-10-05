@@ -22,7 +22,7 @@ uso posterior de IA com validação humana.
 - Indicadores mensais agregados de BPC por município da CGU/Portal da Transparência.
 - Painel web para executar e acompanhar todas as operações.
 - Proveniência por coleta, checkpoint versionado e camada Bronze comprimida.
-- Suíte automatizada com 31 testes.
+- Suíte automatizada com 35 testes.
 
 ## Arquitetura
 
@@ -60,6 +60,10 @@ de fontes sem credencial estão em [docs/FONTES_ABERTAS.md](docs/FONTES_ABERTAS.
 - Portas locais `5432` e `8000` disponíveis, ou outras definidas no `.env`
 
 ## Início rápido
+
+Para levar a base existente ao servidor remoto pelo Git, siga
+[RESTAURAR_BANCO.md](RESTAURAR_BANCO.md): exportação em `.dump` e
+restauração por script. O banco não acompanha um clone comum do repositório.
 
 No PowerShell, a partir da raiz do projeto:
 
@@ -195,6 +199,24 @@ necessariamente o município do órgão julgador no DataJud.
 ```powershell
 docker compose run --rm ingestion resumo
 ```
+
+### Piloto de triagem com IpeaIA
+
+Na área remota autorizada, configure `IPEAIA_API_TOKEN` no `.env`. A API
+documentada pelo Ipea é compatível com chat completions, mas a integração
+envia apenas dados processuais minimizados e não usa documentos ou partes.
+
+```powershell
+docker compose run --rm ingestion ipeaia-modelos
+docker compose run --rm ingestion ipeaia-triagem --limit 1
+docker compose run --rm ingestion ipeaia-triagem --limit 1 --executar
+```
+
+`--model ID` substitui o modelo de `IPEAIA_MODEL`. A execução exige
+`--executar`; respostas válidas ficam em `extracoes_ia` como pendentes de
+revisão humana. Para transferir o banco à área remota e entender a taxonomia,
+consulte [PROMPT_REVISAO_IPEAIA.md](PROMPT_REVISAO_IPEAIA.md). Um clone do Git
+não inclui o banco nem a camada de dados brutos.
 
 ## Endpoints úteis
 

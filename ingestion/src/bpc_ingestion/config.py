@@ -27,6 +27,9 @@ class Settings:
     checkpoint_file: str = ".state/datajud-checkpoints.json"
     inss_catalog_api_url: str = "https://dadosabertos.inss.gov.br/api/3/action"
     transparencia_base_url: str = "https://api.portaldatransparencia.gov.br/api-de-dados"
+    ipeaia_base_url: str = "https://ipeagpt.ipea.gov.br/api/v1"
+    ipeaia_api_token: str | None = None
+    ipeaia_model: str = "glm-5.1"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -54,6 +57,11 @@ class Settings:
                 "PORTAL_TRANSPARENCIA_BASE_URL",
                 "https://api.portaldatransparencia.gov.br/api-de-dados",
             ).rstrip("/"),
+            ipeaia_base_url=os.getenv(
+                "IPEAIA_BASE_URL", "https://ipeagpt.ipea.gov.br/api/v1"
+            ).rstrip("/"),
+            ipeaia_api_token=os.getenv("IPEAIA_API_TOKEN"),
+            ipeaia_model=os.getenv("IPEAIA_MODEL", "glm-5.1"),
         )
 
     def require_datajud_key(self) -> str:
@@ -65,3 +73,8 @@ class Settings:
         if not self.transparencia_api_token:
             raise ValueError("PORTAL_TRANSPARENCIA_API_TOKEN é obrigatório para esta coleta")
         return self.transparencia_api_token
+
+    def require_ipeaia_token(self) -> str:
+        if not self.ipeaia_api_token:
+            raise ValueError("IPEAIA_API_TOKEN é obrigatório para chamar a IpeaIA")
+        return self.ipeaia_api_token

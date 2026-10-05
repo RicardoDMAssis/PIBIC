@@ -16,6 +16,8 @@ from .datajud import (
     DatajudClient, normalizar_hit, normalizar_processo, query_fingerprint, query_manifest,
 )
 from .inss import InssCatalogClient
+from .ipeaia import IpeaIaClient, PROMPT_VERSION, load_process_input, pending_processes
+from .models import ExtracaoIa, Processo
 from .persistence import agora_iso
 from .postgres_store import PostgresStore
 from .sqlite_store import SqliteStore
@@ -73,6 +75,12 @@ def construir_parser() -> argparse.ArgumentParser:
     transparencia.add_argument("--mes-inicial", type=int, required=True)
     transparencia.add_argument("--mes-final", type=int, required=True)
     transparencia.add_argument("--interval", type=float, default=0.5)
+    commands.add_parser("ipeaia-modelos", help="Lista modelos disponíveis na API IpeaIA")
+    triagem = commands.add_parser("ipeaia-triagem", help="Piloto de triagem BPC com revisão pendente")
+    triagem.add_argument("--limit", type=int, default=5)
+    triagem.add_argument("--model", help="ID do modelo; padrão IPEAIA_MODEL")
+    triagem.add_argument("--max-movimentos", type=int, default=100)
+    triagem.add_argument("--executar", action="store_true", help="Envia à API e grava; sem isto, só pré-visualiza")
     return parser
 
 
@@ -285,6 +293,51 @@ def collect_transparencia_bpc(args: argparse.Namespace, settings: Settings) -> i
     return 0
 
 
+def ipeaia_models(settings: Settings) -> int:
+    client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token())
+    for model in client.models():
+        print(model)
+    return 0
+
+
+def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
+    if not 1 <= args.limit <= 50:
+        raise ValueError("Use --limit entre 1 e 50 no piloto")
+    if args.max_movimentos < 2:
+        raise ValueError("Use --max-movimentos de pelo menos 2")
+    model = args.model or settings.ipeaia_model
+    store = PostgresStore(settings.database_url)
+    try:
+        with store.Session() as session:
+            processes = pending_processes(session, model, args.limit)
+            inputs = [load_process_input(session, process, args.max_movimentos) for process in processes]
+        LOGGER.info("Piloto IpeaIA: %d processos pendentes; modelo=%s, prompt=%s, executar=%s",
+                    len(inputs), model, PROMPT_VERSION, args.executar)
+        if not args.executar:
+            for source in inputs:
+                LOGGER.info("Prévia %s: %d registros, %d movimentações enviáveis",
+                            source["numero_processo"], len(source["registros"]),
+                            sum(len(item["movimentacoes"]) for item in source["registros"]))
+            return 0
+        client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token())
+        for source in inputs:
+            result = client.classify(model, source)
+            with store.Session.begin() as session:
+                target = session.query(Processo).filter_by(numero_processo=source["numero_processo"]).one()
+                session.add(ExtracaoIa(
+                    processo_id=target.id,
+                    tipo_extracao="triagem_bpc",
+                    modelo=model,
+                    versao_prompt=PROMPT_VERSION,
+                    resultado=result,
+                    status_validacao="pendente",
+                ))
+            LOGGER.info("Triagem pendente de revisão gravada: %s", source["numero_processo"])
+    finally:
+        store.close()
+    return 0
+
+
 def catalog_inss(args: argparse.Namespace, settings: Settings) -> int:
     store = PostgresStore(settings.database_url)
     run_id = store.start_collection(
@@ -319,6 +372,10 @@ def executar(argv: Sequence[str] | None = None) -> int:
         return catalog_inss(args, settings)
     if args.command == "transparencia-bpc":
         return collect_transparencia_bpc(args, settings)
+    if args.command == "ipeaia-modelos":
+        return ipeaia_models(settings)
+    if args.command == "ipeaia-triagem":
+        return ipeaia_triage(args, settings)
     raise AssertionError(f"Comando inesperado: {args.command}")
 
 

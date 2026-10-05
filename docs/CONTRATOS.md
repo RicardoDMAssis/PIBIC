@@ -91,6 +91,17 @@ e status de validação. A dimensão vetorial será definida quando o modelo for
 selecionado; a coluna `vector` aceita armazenamento antes da criação de um índice
 específico por dimensão/modelo.
 
+O piloto IpeaIA usa `extracoes_ia.tipo_extracao = triagem_bpc`,
+`versao_prompt = bpc_triagem_api_v1.0`, `resultado` JSONB validado e
+`status_validacao = pendente`. O modelo vem de `IPEAIA_MODEL` ou `--model`.
+Envia apenas campos normalizados de registros públicos TRF1/G1/JE do órgão de
+Brasília: classe, órgão, assuntos e movimentos sem complementos, com indicação
+de truncamento. Não envia `payload_original`, partes, CPF nem documentos. O
+desfecho permanece `indeterminado` sem texto decisório. Cada combinação de
+processo, tipo, modelo e versão do prompt é única; uma nova metodologia requer
+nova versão, não sobrescrita silenciosa. A classificação não está validada até
+revisão humana.
+
 ## Regras de qualidade
 
 - Datas normalizadas em UTC;
@@ -100,4 +111,6 @@ específico por dimensão/modelo.
 - `sem_resultado` no Comunica é diferente de erro;
 - Reexecução não cria duplicatas;
 - Não inferir concessão ou negativa apenas pela existência do movimento Sentença;
-- Não versionar chaves, dumps brutos ou dados pessoais.
+- Não versionar chaves nem o `.env`. Para a transferência solicitada pelo
+  pesquisador, `transferencia/bpc-jud.dump` é a cópia PostgreSQL autorizada a
+  acompanhar o Git, sem criptografia. Arquivos Bronze continuam fora do Git.
