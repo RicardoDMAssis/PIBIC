@@ -25,6 +25,7 @@ from .models import (
     RegistroDatajud,
     RecursoExterno,
     ReferenciaTpu,
+    TentativaIa,
 )
 from .textutil import repair_text
 
@@ -50,6 +51,10 @@ def _date(value: Any) -> date | None:
 class PostgresStore:
     def __init__(self, database_url: str):
         self.engine = make_engine(database_url, pool_pre_ping=True)
+        # A cópia portátil SQLite não recebe migrações Alembic. Cria somente a
+        # tabela operacional nova, sem alterar dados analíticos já transferidos.
+        if self.engine.dialect.name == "sqlite":
+            TentativaIa.__table__.create(bind=self.engine, checkfirst=True)
         self.Session = sessionmaker(self.engine, expire_on_commit=False)
 
     def close(self) -> None:

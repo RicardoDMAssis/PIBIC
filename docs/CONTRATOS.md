@@ -112,7 +112,7 @@ selecionado; a coluna `vector` aceita armazenamento antes da criação de um ín
 específico por dimensão/modelo.
 
 O piloto IpeaIA usa `extracoes_ia.tipo_extracao = triagem_bpc`,
-`versao_prompt = bpc_triagem_api_v1.0`, `resultado` JSONB validado e
+`versao_prompt = bpc_triagem_api_v1.1`, `resultado` JSONB validado e
 `status_validacao = pendente`. O modelo vem de `IPEAIA_MODEL` ou `--model`.
 Envia apenas campos normalizados de registros públicos TRF1/G1/JE do órgão de
 Brasília: classe, órgão, assuntos e movimentos sem complementos, com indicação
@@ -125,8 +125,14 @@ revisão humana.
 Respostas IpeaIA rejeitadas não são persistidas em `extracoes_ia`. Para diagnóstico,
 o CLI salva em `data/ipeaia_rejeitadas/<id>.json` a entrada enviada, modelo,
 versão do prompt, erro e resposta da API (token removido). Os arquivos ficam
-fora do Git; não são classificações nem registros Bronze imutáveis. O processo
-continua pendente. O prompt e o schema de resultados permanecem na versão v1.0.
+fora do Git; não são classificações nem registros Bronze imutáveis. A resposta
+rejeitada fica marcada em `tentativas_ia` e não é reenviada por padrão; use
+`--retry-rejeitadas` somente após corrigir a causa. Reservas temporárias nessa
+tabela impedem duas chamadas para o mesmo processo. O prompt e o schema de
+resultados permanecem na versão v1.1.
+Timeouts e falhas de rede também não são repetidos automaticamente, porque a
+API pode ter continuado a geração após a desconexão; use `--retry-falhas`
+somente quando decidir assumir essa repetição.
 
 O parser aceita JSON puro ou um único bloco Markdown JSON, sem texto externo.
 Caminhos de evidência como `classe.nome`, `assuntos[0].nome` e
@@ -134,6 +140,8 @@ Caminhos de evidência como `classe.nome`, `assuntos[0].nome` e
 efetivamente enviado (não no conjunto de movimentos omitidos por truncamento).
 São normalizados para `classe`, `assuntos`, `movimentacoes` ou `orgao_julgador`,
 mantendo o caminho original como prefixo de `referencia`; o schema não muda.
+Os campos simples `tribunal` e `grau` também são aceitos para aderência
+geográfica, mas devem ser citados separadamente: `tribunal / grau` é inválido.
 Isso valida estrutura e vínculo, não a interpretação factual, ainda pendente
 de revisão humana. Quando a API informa modelo diferente do solicitado, a
 resposta é rejeitada com diagnóstico para não registrar atribuição incorreta.

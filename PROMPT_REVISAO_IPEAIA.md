@@ -8,9 +8,9 @@ Para transferir a base pelo Git, siga
 `scripts/transferir-banco.ps1` e substitui os comandos de transporte manual
 abaixo quando a transferência ocorrer pelo Git.
 
-Versão do prompt de referência: `bpc_triagem_v1.0` — 22/09/2026.
+Versão do prompt de referência: `bpc_triagem_api_v1.1` — 06/10/2026.
 O cliente automatizado usa uma instrução operacional mais curta, versionada
-separadamente como `bpc_triagem_api_v1.0` em `ipeaia.py`; não misture os
+diretamente como `bpc_triagem_api_v1.1` em `ipeaia.py`; não misture os
 resultados das duas versões numa avaliação sem distinguir a origem.
 
 Este arquivo serve para iniciar **triagem assistida**, não para produzir conclusões
@@ -209,7 +209,7 @@ DEFINIÇÕES:
 
 FORMATO EXATO:
 {
-  "versao_prompt": "bpc_triagem_v1.0",
+  "versao_prompt": "bpc_triagem_api_v1.1",
   "numero_processo": "<copiar da entrada>",
   "escopo_pedido": "indeterminado",
   "aderencia_geografica": "indeterminado",
@@ -218,7 +218,6 @@ FORMATO EXATO:
   "revisao_humana": true,
   "evidencias": [
     {
-      "fonte": "DataJud",
       "registro_id": 123,
       "campo": "assuntos",
       "referencia": "codigo=11946",
@@ -228,6 +227,11 @@ FORMATO EXATO:
   "lacunas": ["texto do pedido", "texto da sentença"],
   "observacao_curta": "Até 300 caracteres, sem dados pessoais."
 }
+
+`campo` deve ser exatamente `assuntos`, `classe`, `movimentacoes`,
+`orgao_julgador`, `tribunal` ou `grau`, ou um caminho existente abaixo dos quatro
+primeiros. Para aderência geográfica, cite `orgao_julgador`, `tribunal` ou `grau`
+separadamente; não use rótulos compostos como `tribunal / grau`.
 
 Se não houver evidência para uma categoria, mantenha "indeterminado" e
 evidencias=[] se necessário. Não produza probabilidade numérica subjetiva.

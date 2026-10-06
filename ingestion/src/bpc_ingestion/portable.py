@@ -13,7 +13,7 @@ from sqlalchemy.engine import URL
 from dotenv import load_dotenv
 
 from .database import make_engine
-from .models import Base
+from .models import Base, TentativaIa
 
 
 SQLITE_VIEWS = {
@@ -53,7 +53,8 @@ SQLITE_VIEWS = {
 def copy_database(source, output: Path) -> dict[str, int]:
     if output.exists():
         raise ValueError(f"Arquivo ja existe: {output}. Escolha outro nome para preservar a copia anterior.")
-    unknown = set(inspect(source).get_table_names()) - set(Base.metadata.tables) - {"alembic_version"}
+    source_tables = set(inspect(source).get_table_names())
+    unknown = source_tables - set(Base.metadata.tables) - {"alembic_version"}
     if unknown:
         raise ValueError(f"Tabelas nao previstas no contrato: {sorted(unknown)}")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -66,6 +67,11 @@ def copy_database(source, output: Path) -> dict[str, int]:
                 read = read.execution_options(isolation_level="REPEATABLE READ")
             with read.begin(), target.begin() as write:
                 for table in Base.metadata.sorted_tables:
+                    # Pacotes criados antes de uma tabela operacional podem ser
+                    # exportados sem inventar dados para ela.
+                    if table.name not in source_tables:
+                        counts[table.name] = 0
+                        continue
                     expected = read.scalar(select(func.count()).select_from(table))
                     for batch in read.execute(select(table).execution_options(stream_results=True)).mappings().partitions(1000):
                         rows = [dict(row) for row in batch]
@@ -113,6 +119,8 @@ def initialize(package: Path, output: Path) -> None:
             shutil.copyfileobj(compressed, raw)
         engine = make_engine(URL.create("sqlite", database=str(sqlite_file.resolve())))
         try:
+            # Compatibilidade com pacotes anteriores à tabela de reservas da IA.
+            TentativaIa.__table__.create(bind=engine, checkfirst=True)
             with engine.connect() as connection:
                 if connection.exec_driver_sql("PRAGMA integrity_check").scalar() != "ok":
                     raise RuntimeError("Pacote SQLite inconsistente")

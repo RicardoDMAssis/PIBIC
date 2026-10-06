@@ -305,3 +305,36 @@ class ExtracaoIa(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class TentativaIa(Base):
+    """Reserva e histórico operacional de chamadas de IA ainda não aceitas."""
+
+    __tablename__ = "tentativas_ia"
+    __table_args__ = (
+        UniqueConstraint(
+            "processo_id", "tipo_extracao", "modelo", "versao_prompt",
+            name="uq_tentativa_ia_modelo_prompt",
+        ),
+        Index("ix_tentativas_ia_status_expira", "status", "expira_em"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    processo_id: Mapped[int] = mapped_column(
+        ForeignKey("processos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tipo_extracao: Mapped[str] = mapped_column(String(100), nullable=False)
+    modelo: Mapped[str] = mapped_column(String(100), nullable=False)
+    versao_prompt: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    tentativas: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    hash_entrada: Mapped[str | None] = mapped_column(String(64))
+    erro: Mapped[str | None] = mapped_column(Text)
+    diagnostico_arquivo: Mapped[str | None] = mapped_column(Text)
+    expira_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

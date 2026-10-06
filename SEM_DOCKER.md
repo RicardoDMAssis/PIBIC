@@ -79,7 +79,11 @@ Se a resposta for rejeitada, o comando mostra o campo e o índice da evidência
 inválida e salva um diagnóstico em `data/ipeaia_rejeitadas/<id>.json`. O arquivo
 contém a entrada enviada, modelo, versão do prompt, erro e resposta da API,
 sem token. Ele fica fora do Git. A resposta inválida não entra em `extracoes_ia`;
-o processo permanece pendente para nova tentativa. Não há repetição automática.
+fica marcada como rejeitada e não é reenviada automaticamente. Depois de corrigir
+o contrato ou prompt, use `--retry-rejeitadas` para tentar novamente.
+Falhas de rede ou timeout também ficam bloqueadas por segurança, pois o servidor
+pode ter continuado a geração; somente repita-as conscientemente com
+`--retry-falhas`.
 Este diagnóstico de formato não substitui a revisão humana dos fatos citados.
 
 JSON dentro de um único bloco Markdown também é aceito. Caminhos de campos

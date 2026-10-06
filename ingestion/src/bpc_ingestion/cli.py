@@ -18,8 +18,9 @@ from .datajud import (
     DatajudClient, normalizar_hit, normalizar_processo, query_fingerprint, query_manifest,
 )
 from .inss import InssCatalogClient
-from .ipeaia import (IpeaIaClient, PROMPT_VERSION, RejectedIpeaResponse,
-                    load_process_input, pending_processes, save_rejected_response)
+from .ipeaia import (EXTRACTION_TYPE, IpeaIaClient, PROMPT_VERSION, RejectedIpeaResponse,
+                    finish_attempt, load_process_input, pending_processes, reserve_pending_processes,
+                    save_rejected_response, update_attempt_input)
 from .models import ExtracaoIa, Processo
 from .persistence import agora_iso
 from .postgres_store import PostgresStore
@@ -85,6 +86,10 @@ def construir_parser() -> argparse.ArgumentParser:
     triagem.add_argument("--max-movimentos", type=int, default=100)
     triagem.add_argument("--timeout", type=float, help="Tempo limite de rede em segundos; padrao IPEAIA_TIMEOUT_SECONDS (600)")
     triagem.add_argument("--executar", action="store_true", help="Envia à API e grava; sem isto, só pré-visualiza")
+    triagem.add_argument("--retry-rejeitadas", action="store_true",
+                         help="Tenta novamente respostas rejeitadas nesta versão de prompt")
+    triagem.add_argument("--retry-falhas", action="store_true",
+                         help="Tenta novamente falhas de rede/timeout desta versão de prompt")
     return parser
 
 
@@ -314,10 +319,23 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Use --timeout positivo e finito, em segundos")
     store = PostgresStore(settings.database_url)
+    retry_rejected = getattr(args, "retry_rejeitadas", False)
+    retry_failed = getattr(args, "retry_falhas", False)
     try:
-        with store.Session() as session:
-            processes = pending_processes(session, model, args.limit)
-            inputs = [load_process_input(session, process, args.max_movimentos) for process in processes]
+        if args.executar:
+            # A reserva dura mais que o timeout para impedir duas chamadas caras ao mesmo processo.
+            with store.Session.begin() as session:
+                processes = reserve_pending_processes(
+                    session, model, args.limit, max(1800, math.ceil(timeout) + 300),
+                    retry_rejected, retry_failed,
+                )
+                inputs = [load_process_input(session, process, args.max_movimentos) for process in processes]
+                for process, source in zip(processes, inputs):
+                    update_attempt_input(session, process.id, model, source)
+        else:
+            with store.Session() as session:
+                processes = pending_processes(session, model, args.limit, retry_rejected, retry_failed)
+                inputs = [load_process_input(session, process, args.max_movimentos) for process in processes]
         LOGGER.info("Piloto IpeaIA: %d processos pendentes; modelo=%s, prompt=%s, executar=%s",
                     len(inputs), model, PROMPT_VERSION, args.executar)
         if not args.executar:
@@ -327,7 +345,8 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
                             sum(len(item["movimentacoes"]) for item in source["registros"]))
             return 0
         client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token(), timeout=timeout)
-        for source in inputs:
+        successful = rejected = failed = 0
+        for process, source in zip(processes, inputs):
             LOGGER.info("Enviando %s a IpeaIA; modelo=%s, timeout=%gs. Aguardando resposta...",
                         source["numero_processo"], model, timeout)
             started = time.monotonic()
@@ -337,22 +356,42 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
                 try:
                     diagnostic = save_rejected_response(exc, source, model, client.token)
                 except OSError as save_error:
-                    raise RuntimeError(f"Resposta rejeitada: {exc}. Nenhuma extração gravada. "
-                                       f"Falha ao salvar diagnóstico: {save_error}") from exc
-                raise RuntimeError(f"Resposta rejeitada: {exc}. Nenhuma extração gravada "
-                                   f"para este processo. Diagnóstico: {diagnostic}") from exc
+                    diagnostic = None
+                    detail = f"Resposta rejeitada: {exc}. Falha ao salvar diagnóstico: {save_error}"
+                else:
+                    detail = f"Resposta rejeitada: {exc}. Diagnóstico: {diagnostic}"
+                with store.Session.begin() as session:
+                    finish_attempt(session, process.id, model, "rejeitada", str(exc),
+                                   str(diagnostic) if diagnostic else None)
+                rejected += 1
+                LOGGER.error("%s", detail)
+                continue
+            except RuntimeError as exc:
+                with store.Session.begin() as session:
+                    finish_attempt(session, process.id, model, "falhou", str(exc))
+                failed += 1
+                LOGGER.error("Falha IpeaIA para %s: %s", source["numero_processo"], exc)
+                continue
             with store.Session.begin() as session:
-                target = session.query(Processo).filter_by(numero_processo=source["numero_processo"]).one()
+                target = session.get(Processo, process.id)
+                if target is None:  # proteção contra exclusão concorrente
+                    finish_attempt(session, process.id, model, "falhou", "Processo removido durante a triagem")
+                    failed += 1
+                    continue
                 session.add(ExtracaoIa(
                     processo_id=target.id,
-                    tipo_extracao="triagem_bpc",
+                    tipo_extracao=EXTRACTION_TYPE,
                     modelo=model,
                     versao_prompt=PROMPT_VERSION,
                     resultado=result,
                     status_validacao="pendente",
                 ))
+                finish_attempt(session, process.id, model, "concluida")
+            successful += 1
             LOGGER.info("Triagem pendente de revisão gravada: %s (%.1fs)",
                         source["numero_processo"], time.monotonic() - started)
+        LOGGER.info("Triagem finalizada: %d válida(s), %d rejeitada(s), %d falha(s)",
+                    successful, rejected, failed)
     finally:
         store.close()
     return 0

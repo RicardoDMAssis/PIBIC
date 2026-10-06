@@ -6,8 +6,11 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from urllib.error import URLError
 
+from sqlalchemy.dialects import postgresql
+
 from bpc_ingestion.ipeaia import (IpeaIaClient, PROMPT_VERSION, RejectedIpeaResponse,
-                                build_input, save_rejected_response, validate_result)
+                                _eligible_process_statement, build_input,
+                                save_rejected_response, validate_result)
 
 
 class IpeaIaTest(unittest.TestCase):
@@ -47,9 +50,29 @@ class IpeaIaTest(unittest.TestCase):
         invalid = dict(self.result, desfecho="procedente")
         with self.assertRaises(ValueError):
             validate_result(invalid, self.source)
+
+    def test_aceita_tribunal_e_grau_mas_rejeita_rotulo_composto(self):
+        valid = dict(self.result, evidencias=[
+            dict(self.result["evidencias"][0], campo="tribunal", referencia="TRF1"),
+            dict(self.result["evidencias"][0], campo="grau", referencia="JE"),
+        ])
+        fields = [item["campo"] for item in validate_result(valid, self.source)["evidencias"]]
+        self.assertEqual(fields, ["tribunal", "grau"])
+        invalid = dict(self.result, evidencias=[
+            dict(self.result["evidencias"][0], campo="tribunal / grau"),
+        ])
+        with self.assertRaisesRegex(ValueError, "caminho existente"):
+            validate_result(invalid, self.source)
         invalid = dict(self.result, evidencias=[dict(self.result["evidencias"][0], registro_id=999)])
         with self.assertRaises(ValueError):
             validate_result(invalid, self.source)
+
+    def test_consulta_de_reserva_e_compativel_com_postgresql(self):
+        sql = str(_eligible_process_statement("modelo", 1, lock=True).compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True},
+        )).upper()
+        self.assertIn("FOR UPDATE SKIP LOCKED", sql)
+        self.assertNotIn("SELECT DISTINCT", sql)
 
     @patch("bpc_ingestion.ipeaia.urlopen")
     def test_cliente_usa_bearer_sem_token_na_url(self, open_url):
