@@ -141,6 +141,44 @@ class IpeaIaTest(unittest.TestCase):
             IpeaIaClient("https://example.test", "segredo", interval=0).classify("modelo", self.source)
         self.assertEqual(caught.exception.response, response)
 
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_aceita_json_em_bloco_markdown_e_caminhos_existentes(self, open_url):
+        paths = ["orgao_julgador.nome", "assuntos[0].nome", "classe.nome",
+                 "movimentacoes[sequencia=6].nome"]
+        result = dict(self.result, evidencias=[
+            dict(self.result["evidencias"][0], campo=path) for path in paths
+        ])
+        response = {"model": "glm-5.3", "choices": [{"message": {
+            "content": "```json\n" + json.dumps(result) + "\n```"}}]}
+        open_url.return_value.__enter__.return_value = io.BytesIO(json.dumps(response).encode())
+        parsed = IpeaIaClient("https://example.test", "segredo", interval=0).classify("glm-5.3", self.source)
+        self.assertEqual([e["campo"] for e in parsed["evidencias"]],
+                         ["orgao_julgador", "assuntos", "classe", "movimentacoes"])
+        self.assertTrue(parsed["evidencias"][3]["referencia"].startswith(paths[3] + ":"))
+        self.assertEqual(result["evidencias"][3]["campo"], paths[3])
+
+    def test_rejeita_caminhos_ausentes_ou_movimentos_nao_enviados(self):
+        for path in ("classe.inventado", "assuntos[999].nome", "movimentacoes[sequencia=2].nome",
+                     "movimentacoes[sequencia=999].nome", "orgao_julgador.nome.inventado"):
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "caminho existente"):
+                validate_result(dict(self.result, evidencias=[
+                    dict(self.result["evidencias"][0], campo=path)]), self.source)
+
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_rejeita_texto_extra_fora_do_bloco_json(self, open_url):
+        response = {"choices": [{"message": {
+            "content": "Explicação\n```json\n" + json.dumps(self.result) + "\n```"}}]}
+        open_url.return_value.__enter__.return_value = io.BytesIO(json.dumps(response).encode())
+        with self.assertRaisesRegex(RejectedIpeaResponse, "JSON válido"):
+            IpeaIaClient("https://example.test", "segredo", interval=0).classify("modelo", self.source)
+
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_rejeita_modelo_diferente_do_solicitado(self, open_url):
+        response = {"model": "glm-5.3", "choices": [{"message": {"content": json.dumps(self.result)}}]}
+        open_url.return_value.__enter__.return_value = io.BytesIO(json.dumps(response).encode())
+        with self.assertRaisesRegex(RejectedIpeaResponse, "Modelo divergente.*glm-5.2.*glm-5.3"):
+            IpeaIaClient("https://example.test", "segredo", interval=0).classify("glm-5.2", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

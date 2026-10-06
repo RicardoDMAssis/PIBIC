@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -117,6 +118,7 @@ def validate_result(result: Any, source: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(result["evidencias"], list):
         raise ValueError("Evidências devem ser lista")
     record_ids = {record["registro_id"] for record in source["registros"]}
+    normalized_evidence = []
     for index, evidence in enumerate(result["evidencias"]):
         prefix = f"evidencias[{index}]"
         if not isinstance(evidence, dict):
@@ -129,14 +131,38 @@ def validate_result(result: Any, source: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"{prefix}.registro_id: recebido={evidence['registro_id']!r}; "
                              f"use um ID inteiro da entrada: {sorted(record_ids)}")
         allowed = {"assuntos", "movimentacoes", "classe", "orgao_julgador"}
-        if not isinstance(evidence["campo"], str) or evidence["campo"] not in allowed:
+        record = next(record for record in source["registros"]
+                      if record["registro_id"] == evidence["registro_id"])
+        paths = {}
+        for root in allowed:
+            value = record.get(root)
+            if isinstance(value, dict):
+                paths.update({f"{root}.{key}": root for key in value})
+            elif isinstance(value, list):
+                for position, item in enumerate(value):
+                    if not isinstance(item, dict):
+                        continue
+                    paths[f"{root}[{position}]"] = root
+                    paths.update({f"{root}[{position}].{key}": root for key in item})
+                    if root == "movimentacoes" and type(item.get("sequencia")) is int:
+                        selector = f"{root}[sequencia={item['sequencia']}]"
+                        paths[selector] = root
+                        paths.update({f"{selector}.{key}": root for key in item})
+        field = evidence["campo"]
+        if not isinstance(field, str) or (field not in allowed and field not in paths):
             raise ValueError(f"{prefix}.campo: recebido={evidence['campo']!r}; "
-                             f"permitidos={sorted(allowed)}")
+                             f"use {sorted(allowed)} ou um caminho existente na entrada")
         for field in ("referencia", "sustenta"):
             if not isinstance(evidence[field], str):
                 raise ValueError(f"{prefix}.{field}: deve ser texto; "
                                  f"recebido tipo {type(evidence[field]).__name__}")
-    return result
+        original_field = evidence["campo"]
+        normalized = dict(evidence)
+        if original_field in paths:
+            normalized["campo"] = paths[original_field]
+            normalized["referencia"] = f"{original_field}: {evidence['referencia']}"
+        normalized_evidence.append(normalized)
+    return dict(result, evidencias=normalized_evidence)
 
 
 class IpeaIaClient:
@@ -218,10 +244,21 @@ class IpeaIaClient:
                     block.get("text", "") for block in content
                     if isinstance(block, dict) and isinstance(block.get("text"), str)
                 )
+            if isinstance(content, str):
+                content = content.strip()
+                fenced = re.fullmatch(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", content,
+                                      flags=re.DOTALL | re.IGNORECASE)
+                if fenced:
+                    content = fenced.group(1)
             result = json.loads(content)
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
             raise RejectedIpeaResponse("Resposta IpeaIA não contém JSON válido", response) from exc
         try:
+            returned_model = response.get("model")
+            if returned_model is not None and returned_model != model:
+                raise ValueError(f"Modelo divergente: solicitado={model!r}, "
+                                 f"informado pela API={returned_model!r}. "
+                                 "Confirme o modelo com --model; resultado não gravado sob nome incorreto")
             return validate_result(result, source)
         except (ValueError, TypeError) as exc:
             raise RejectedIpeaResponse(str(exc), response) from exc

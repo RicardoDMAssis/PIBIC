@@ -82,6 +82,11 @@ sem token. Ele fica fora do Git. A resposta inválida não entra em `extracoes_i
 o processo permanece pendente para nova tentativa. Não há repetição automática.
 Este diagnóstico de formato não substitui a revisão humana dos fatos citados.
 
+JSON dentro de um único bloco Markdown também é aceito. Caminhos de campos
+existentes são normalizados sem alterar o contrato. Se aparecer `Modelo
+divergente`, confirme o ID com `ipeaia-modelos` e use `--model` com o modelo
+correto; a aplicação não grava uma resposta atribuída a outro modelo.
+
 ## Atualizar a cópia no futuro
 
 A origem PostgreSQL permanece na máquina local. O módulo

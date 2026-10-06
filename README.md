@@ -22,7 +22,7 @@ uso posterior de IA com validação humana.
 - Indicadores mensais agregados de BPC por município da CGU/Portal da Transparência.
 - Painel web para executar e acompanhar todas as operações.
 - Proveniência por coleta, checkpoint versionado e camada Bronze comprimida.
-- Suíte automatizada com 42 testes.
+- Suíte automatizada com 46 testes.
 
 ## Arquitetura
 

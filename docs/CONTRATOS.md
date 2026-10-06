@@ -128,6 +128,16 @@ versão do prompt, erro e resposta da API (token removido). Os arquivos ficam
 fora do Git; não são classificações nem registros Bronze imutáveis. O processo
 continua pendente. O prompt e o schema de resultados permanecem na versão v1.0.
 
+O parser aceita JSON puro ou um único bloco Markdown JSON, sem texto externo.
+Caminhos de evidência como `classe.nome`, `assuntos[0].nome` e
+`movimentacoes[sequencia=12].nome` são aceitos somente quando existem no registro
+efetivamente enviado (não no conjunto de movimentos omitidos por truncamento).
+São normalizados para `classe`, `assuntos`, `movimentacoes` ou `orgao_julgador`,
+mantendo o caminho original como prefixo de `referencia`; o schema não muda.
+Isso valida estrutura e vínculo, não a interpretação factual, ainda pendente
+de revisão humana. Quando a API informa modelo diferente do solicitado, a
+resposta é rejeitada com diagnóstico para não registrar atribuição incorreta.
+
 ## Regras de qualidade
 
 - Datas normalizadas em UTC;
@@ -146,5 +156,6 @@ continua pendente. O prompt e o schema de resultados permanecem na versão v1.0.
 
 | Data | Decisão | Consequência |
 | --- | --- | --- |
+| 05/10/2026 | Aceitar bloco Markdown JSON e normalizar caminhos de evidências existentes; rejeitar divergência de modelo informada pela API. | Corrige incompatibilidade de formato observada no GLM sem aceitar caminhos inexistentes nem mudar o schema; preserva rastreabilidade do caminho em `referencia`. |
 | 05/10/2026 | Detalhar falhas de evidências e conservar respostas IpeaIA rejeitadas em diagnóstico local sem token. | Não aceitar IDs externos à entrada nem formatos inválidos; nenhuma extração gravada para o processo rejeitado e nenhuma repetição automática. Sem alteração do schema ou da metodologia. |
 | 05/10/2026 | Usar cópia SQLite no servidor remoto sem Docker; manter PostgreSQL na origem. | Mesmas tabelas e dados da aplicação; extrações de IA persistidas em `data/bpc-remote.sqlite`. Embeddings armazenados como JSON, sem busca pgvector nesse ambiente. |
