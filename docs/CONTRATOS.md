@@ -1,4 +1,4 @@
-# Contrato de dados BPC Jud — v0.2
+# Contrato de dados BPC Jud — v0.3
 
 Este documento substitui o contrato v0.1 baseado em SQLite/MongoDB.
 
@@ -85,6 +85,26 @@ versão da pipeline.
 
 ## IA
 
+### Execução portátil sem Docker (05/10/2026)
+
+A base PostgreSQL pode ser exportada para SQLite mantendo as mesmas tabelas,
+colunas, chaves, vínculos e dados da aplicação. O módulo `bpc_ingestion.portable`
+confere contagens de todas as tabelas, integridade e chaves estrangeiras antes
+de publicar `transferencia/bpc-jud.sqlite.gz`. `alembic_version` é metadado
+específico do PostgreSQL e não acompanha a cópia; as três views analíticas são
+recriadas com sintaxe SQLite. O antigo `SqliteStore` de `processos_raw` é legado
+e não deve ser usado para esta cópia.
+
+No SQLite, JSONB usa JSON, UUID usa representação hexadecimal e os IDs usam
+INTEGER de 64 bits com geração automática. Campos monetários mantêm o contrato
+de duas casas, com a representação NUMERIC do SQLite. Embeddings, se existentes,
+são listas JSON; busca vetorial pgvector continua restrita ao PostgreSQL.
+Datas seguem o contrato UTC, com leitura sem informação de fuso no SQLite.
+O painel e `ipeaia-triagem` usam a cópia definida em `DATABASE_URL` e gravam
+`extracoes_ia` nesse mesmo arquivo. A cópia é destinada ao piloto de pesquisa
+no ambiente remoto; alterações não sincronizam automaticamente com a origem.
+Não executar as migrações Alembic PostgreSQL nesta cópia SQLite.
+
 Todo chunk deve registrar texto, hash, modelo de embedding, dimensão e versão da
 pipeline. Toda extração deve registrar modelo, versão do prompt, resultado JSON
 e status de validação. A dimensão vetorial será definida quando o modelo for
@@ -112,5 +132,12 @@ revisão humana.
 - Reexecução não cria duplicatas;
 - Não inferir concessão ou negativa apenas pela existência do movimento Sentença;
 - Não versionar chaves nem o `.env`. Para a transferência solicitada pelo
-  pesquisador, `transferencia/bpc-jud.dump` é a cópia PostgreSQL autorizada a
+  pesquisador, `transferencia/bpc-jud.dump` e `transferencia/bpc-jud.sqlite.gz`
+  são as cópias autorizadas a
   acompanhar o Git, sem criptografia. Arquivos Bronze continuam fora do Git.
+
+## Log de decisões
+
+| Data | Decisão | Consequência |
+| --- | --- | --- |
+| 05/10/2026 | Usar cópia SQLite no servidor remoto sem Docker; manter PostgreSQL na origem. | Mesmas tabelas e dados da aplicação; extrações de IA persistidas em `data/bpc-remote.sqlite`. Embeddings armazenados como JSON, sem busca pgvector nesse ambiente. |

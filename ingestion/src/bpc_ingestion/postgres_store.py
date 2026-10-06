@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import create_engine
+from .database import make_engine
 
 from .models import (
     Assunto,
@@ -49,7 +49,7 @@ def _date(value: Any) -> date | None:
 
 class PostgresStore:
     def __init__(self, database_url: str):
-        self.engine = create_engine(database_url, pool_pre_ping=True)
+        self.engine = make_engine(database_url, pool_pre_ping=True)
         self.Session = sessionmaker(self.engine, expire_on_commit=False)
 
     def close(self) -> None:

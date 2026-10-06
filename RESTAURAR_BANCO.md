@@ -1,5 +1,8 @@
 # Levar o banco pelo Git
 
+**Área remota sem Docker:** siga [SEM_DOCKER.md](SEM_DOCKER.md). O roteiro
+abaixo usa PostgreSQL em Docker; o pacote SQLite oferece o caminho sem Docker.
+
 O `git pull` baixa o arquivo `.dump`. A restauracao acontece ao executar o
 script. O resultado e uma copia do PostgreSQL local no servidor
 remoto, incluindo processos, movimentos, publicacoes e extracoes de IA existentes

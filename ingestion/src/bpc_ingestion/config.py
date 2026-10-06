@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
 from dataclasses import dataclass
 
 
@@ -33,6 +34,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        load_dotenv(override=False)
         return cls(
             datajud_api_key=os.getenv("DATAJUD_API_KEY"),
             transparencia_api_token=os.getenv("PORTAL_TRANSPARENCIA_API_TOKEN"),

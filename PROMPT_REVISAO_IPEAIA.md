@@ -1,5 +1,8 @@
 # Revisão piloto de processos BPC com a IpeaIA
 
+Na área remota sem Docker, o roteiro atualizado está em
+[SEM_DOCKER.md](SEM_DOCKER.md): pacote SQLite, painel e IpeaIA usando Python.
+
 Para transferir a base pelo Git, siga
 [RESTAURAR_BANCO.md](RESTAURAR_BANCO.md). Esse roteiro usa o script
 `scripts/transferir-banco.ps1` e substitui os comandos de transporte manual

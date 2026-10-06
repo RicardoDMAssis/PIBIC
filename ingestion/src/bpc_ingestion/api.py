@@ -12,8 +12,10 @@ from typing import Annotated, Any, Literal
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, exists, func, select, text, update
+from sqlalchemy import exists, func, select, text, update
 from sqlalchemy.orm import Session, sessionmaker
+from dotenv import load_dotenv
+from .database import make_engine
 
 from .models import (
     Assunto,
@@ -31,10 +33,11 @@ from .models import (
 )
 
 
+load_dotenv(override=False)
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+psycopg://bpc:bpc@localhost:5432/bpc"
 )
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+engine = make_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 STATIC_DIR = Path(__file__).parent / "static"
 Tribunal = Literal["TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", "STJ"]
@@ -262,11 +265,14 @@ def admin_list_processes(
     ids = [process.id for process in processes]
     if not ids:
         return {"total": total, "limit": limit, "offset": offset, "items": []}
+    tribunal_names = func.string_agg(func.distinct(RegistroDatajud.tribunal), ", ")
+    if session.get_bind().dialect.name == "sqlite":
+        tribunal_names = func.replace(func.group_concat(func.distinct(RegistroDatajud.tribunal)), ",", ", ")
     records = session.execute(
         select(
             RegistroDatajud.processo_id,
             func.count(RegistroDatajud.id),
-            func.string_agg(func.distinct(RegistroDatajud.tribunal), ", "),
+            tribunal_names,
             func.max(RegistroDatajud.data_ultima_atualizacao),
         )
         .where(RegistroDatajud.processo_id.in_(ids))

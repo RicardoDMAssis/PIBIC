@@ -7,7 +7,7 @@ from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    BigInteger,
+    BigInteger as SqlBigInteger,
     Boolean,
     Date,
     DateTime,
@@ -15,14 +15,21 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB as PgJSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+# Mesmo schema logico nos dois bancos; Integer permite autoincremento no SQLite.
+BigInteger = SqlBigInteger().with_variant(Integer(), "sqlite")
+JSONB = JSON().with_variant(PgJSONB(), "postgresql")
+UUID = Uuid
 
 
 class Base(DeclarativeBase):
@@ -269,7 +276,7 @@ class DocumentoChunk(Base):
     dimensao: Mapped[int] = mapped_column(Integer, nullable=False)
     versao_pipeline: Mapped[str] = mapped_column(String(50), nullable=False)
     hash_texto: Mapped[str] = mapped_column(String(64), nullable=False)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector().with_variant(JSON(), "sqlite"), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

@@ -22,7 +22,7 @@ uso posterior de IA com validação humana.
 - Indicadores mensais agregados de BPC por município da CGU/Portal da Transparência.
 - Painel web para executar e acompanhar todas as operações.
 - Proveniência por coleta, checkpoint versionado e camada Bronze comprimida.
-- Suíte automatizada com 35 testes.
+- Suíte automatizada com 36 testes.
 
 ## Arquitetura
 
@@ -60,6 +60,9 @@ de fontes sem credencial estão em [docs/FONTES_ABERTAS.md](docs/FONTES_ABERTAS.
 - Portas locais `5432` e `8000` disponíveis, ou outras definidas no `.env`
 
 ## Início rápido
+
+Na área remota sem Docker, use [SEM_DOCKER.md](SEM_DOCKER.md). O pacote SQLite
+contém os dados atuais e permite rodar o painel e a IpeaIA apenas com Python.
 
 Para levar a base existente ao servidor remoto pelo Git, siga
 [RESTAURAR_BANCO.md](RESTAURAR_BANCO.md): exportação em `.dump` e

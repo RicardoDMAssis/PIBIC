@@ -7,7 +7,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from sqlalchemy import or_, select
+from sqlalchemy import String, cast, or_, select
 from sqlalchemy.orm import Session
 
 from .models import Assunto, ExtracaoIa, Movimento, Processo, RegistroAssunto, RegistroDatajud
@@ -180,7 +180,7 @@ def pending_processes(session: Session, model: str, limit: int) -> list[Processo
         .where(
             RegistroDatajud.tribunal == "TRF1",
             RegistroDatajud.grau.in_(("G1", "JE")),
-            RegistroDatajud.payload["orgaoJulgador"]["codigoMunicipioIBGE"].astext == "743",
+            cast(RegistroDatajud.payload["orgaoJulgador"]["codigoMunicipioIBGE"].as_string(), String) == "743",
             or_(RegistroDatajud.nivel_sigilo == 0, RegistroDatajud.nivel_sigilo.is_(None)),
             ~Processo.id.in_(triaged),
         )
@@ -194,7 +194,7 @@ def load_process_input(session: Session, process: Processo, max_movements: int) 
             RegistroDatajud.processo_id == process.id,
             RegistroDatajud.tribunal == "TRF1",
             RegistroDatajud.grau.in_(("G1", "JE")),
-            RegistroDatajud.payload["orgaoJulgador"]["codigoMunicipioIBGE"].astext == "743",
+            cast(RegistroDatajud.payload["orgaoJulgador"]["codigoMunicipioIBGE"].as_string(), String) == "743",
             or_(RegistroDatajud.nivel_sigilo == 0, RegistroDatajud.nivel_sigilo.is_(None)),
         ).order_by(RegistroDatajud.id)
     ))
