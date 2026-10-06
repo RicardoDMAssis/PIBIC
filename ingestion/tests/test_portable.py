@@ -62,7 +62,7 @@ class PortableDatabaseTest(unittest.TestCase):
                         self.assertEqual(client.get(f"/admin/api/processos/{number}").status_code, 200)
                     with patch("bpc_ingestion.cli.IpeaIaClient") as client:
                         client.return_value.classify.return_value = {"desfecho": "indeterminado"}
-                        args = argparse.Namespace(limit=1, model=None, max_movimentos=100, executar=True)
+                        args = argparse.Namespace(limit=1, model=None, max_movimentos=100, executar=True, timeout=None)
                         ipeaia_triage(args, Settings(database_url=url, ipeaia_api_token="test"))
                     with Session(db) as session:
                         row = session.scalar(select(ExtracaoIa))

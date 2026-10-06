@@ -40,6 +40,7 @@ DATABASE_URL=sqlite:///./data/bpc-remote.sqlite
 IPEAIA_API_TOKEN=SEU_TOKEN_LOCAL
 IPEAIA_BASE_URL=https://ipeagpt.ipea.gov.br/api/v1
 IPEAIA_MODEL=glm-5.1
+IPEAIA_TIMEOUT_SECONDS=600
 ```
 
 O painel e os comandos leem o `.env` automaticamente. Execute sempre da raiz
@@ -65,6 +66,12 @@ O terminal fica ocupado pela API; abra um segundo terminal para os comandos:
 A saída da IA fica em `extracoes_ia` dentro de `data/bpc-remote.sqlite`, com
 status pendente de revisão, e pode ser vista no detalhe do processo no painel.
 Sem `--executar`, há somente prévia e nenhuma chamada à IpeaIA.
+
+Para modelos lentos, o tempo limite de rede é 600 segundos por padrão e pode
+ser alterado por `IPEAIA_TIMEOUT_SECONDS` ou `--timeout 900`. Um timeout mostra
+mensagem específica e não repete automaticamente a geração. Erros de rede
+mostram a causa (por exemplo, certificado ou DNS). Atualize o código remoto
+com `git pull` e `python -m pip install ./ingestion` antes de usar a nova opção.
 
 ## Atualizar a cópia no futuro
 

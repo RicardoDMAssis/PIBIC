@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -100,11 +101,17 @@ def validate_result(result: Any, source: dict[str, Any]) -> dict[str, Any]:
 
 
 class IpeaIaClient:
-    def __init__(self, base_url: str, token: str, timeout: float = 90, interval: float = 1) -> None:
+    def __init__(self, base_url: str, token: str, timeout: float = 600, interval: float = 1,
+                 max_retries: int = 0) -> None:
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("Timeout IpeaIA deve ser positivo e finito")
+        if max_retries < 0:
+            raise ValueError("Retentativas devem ser nao negativas")
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
         self.interval = interval
+        self.max_retries = max_retries
         self._last_request = 0.0
 
     def _request(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -114,7 +121,7 @@ class IpeaIaClient:
             headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
             method="POST" if body is not None else "GET",
         )
-        for attempt in range(4):
+        for attempt in range(self.max_retries + 1):
             delay = self.interval - (time.monotonic() - self._last_request)
             if delay > 0:
                 time.sleep(delay)
@@ -128,13 +135,23 @@ class IpeaIaClient:
             except HTTPError as exc:
                 if exc.code in (401, 403):
                     raise RuntimeError("Token IpeaIA inválido ou sem permissão") from exc
-                if exc.code not in (429, 500, 502, 503, 504) or attempt == 3:
+                if exc.code not in (429, 500, 502, 503, 504) or attempt == self.max_retries:
                     raise RuntimeError(f"IpeaIA retornou HTTP {exc.code}") from exc
                 retry_after = exc.headers.get("Retry-After")
                 wait = float(retry_after) if retry_after and retry_after.isdigit() else 2 ** attempt
             except (URLError, TimeoutError) as exc:
-                if attempt == 3:
-                    raise RuntimeError("Falha de rede na IpeaIA") from exc
+                reason = exc.reason if isinstance(exc, URLError) else exc
+                if isinstance(reason, TimeoutError):
+                    # O servidor pode continuar gerando apos o cliente desistir.
+                    # Nao repetir automaticamente uma geracao por timeout.
+                    raise RuntimeError(
+                        f"Timeout IpeaIA: operacao de rede excedeu {self.timeout:g}s. "
+                        "Pode ser demora da conexao, fila ou geracao. "
+                        "Use --timeout maior para testar; a chamada nao foi repetida."
+                    ) from exc
+                if attempt == self.max_retries:
+                    detail = str(reason).replace(self.token, "[TOKEN]") if self.token else str(reason)
+                    raise RuntimeError(f"Falha de rede na IpeaIA ({type(reason).__name__}): {detail}") from exc
                 wait = 2 ** attempt
             time.sleep(min(wait, 60))
         raise AssertionError("Retentativas esgotadas")

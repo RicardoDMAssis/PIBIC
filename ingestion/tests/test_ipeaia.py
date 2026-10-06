@@ -2,6 +2,7 @@ import io
 import json
 import unittest
 from unittest.mock import patch
+from urllib.error import URLError
 
 from bpc_ingestion.ipeaia import IpeaIaClient, PROMPT_VERSION, build_input, validate_result
 
@@ -64,6 +65,33 @@ class IpeaIaTest(unittest.TestCase):
         open_url.return_value.__enter__.return_value = io.BytesIO(json.dumps(response).encode())
         client = IpeaIaClient("https://ipeagpt.ipea.gov.br/api/v1", "segredo", interval=0)
         self.assertEqual(client.classify("glm-5.1", self.source), self.result)
+
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_timeout_configuravel_sem_repetir_geracao(self, open_url):
+        for failure in (TimeoutError("timed out"), URLError(TimeoutError("timed out"))):
+            with self.subTest(failure=type(failure).__name__):
+                open_url.reset_mock()
+                open_url.side_effect = failure
+                client = IpeaIaClient("https://example.test", "segredo", timeout=900, interval=0, max_retries=3)
+                with self.assertRaisesRegex(RuntimeError, "Timeout IpeaIA.*900s"):
+                    client.classify("modelo", self.source)
+                self.assertEqual(open_url.call_count, 1)
+                self.assertEqual(open_url.call_args.kwargs["timeout"], 900)
+
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_erro_de_rede_mostra_causa_sem_token(self, open_url):
+        open_url.side_effect = URLError("certificate verify failed segredo")
+        client = IpeaIaClient("https://example.test", "segredo", interval=0)
+        with self.assertRaises(RuntimeError) as caught:
+            client.models()
+        self.assertIn("certificate verify failed", str(caught.exception))
+        self.assertNotIn("segredo", str(caught.exception))
+        self.assertEqual(open_url.call_count, 1)
+
+    def test_rejeita_timeout_invalido(self):
+        for timeout in (0, -1, float("inf"), float("nan")):
+            with self.assertRaises(ValueError):
+                IpeaIaClient("https://example.test", "segredo", timeout=timeout)
 
 
 if __name__ == "__main__":

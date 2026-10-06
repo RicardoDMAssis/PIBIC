@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -80,6 +82,7 @@ def construir_parser() -> argparse.ArgumentParser:
     triagem.add_argument("--limit", type=int, default=5)
     triagem.add_argument("--model", help="ID do modelo; padrão IPEAIA_MODEL")
     triagem.add_argument("--max-movimentos", type=int, default=100)
+    triagem.add_argument("--timeout", type=float, help="Tempo limite de rede em segundos; padrao IPEAIA_TIMEOUT_SECONDS (600)")
     triagem.add_argument("--executar", action="store_true", help="Envia à API e grava; sem isto, só pré-visualiza")
     return parser
 
@@ -294,7 +297,7 @@ def collect_transparencia_bpc(args: argparse.Namespace, settings: Settings) -> i
 
 
 def ipeaia_models(settings: Settings) -> int:
-    client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token())
+    client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token(), timeout=30, max_retries=2)
     for model in client.models():
         print(model)
     return 0
@@ -306,6 +309,9 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
     if args.max_movimentos < 2:
         raise ValueError("Use --max-movimentos de pelo menos 2")
     model = args.model or settings.ipeaia_model
+    timeout = args.timeout if args.timeout is not None else settings.ipeaia_timeout_seconds
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Use --timeout positivo e finito, em segundos")
     store = PostgresStore(settings.database_url)
     try:
         with store.Session() as session:
@@ -319,8 +325,11 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
                             source["numero_processo"], len(source["registros"]),
                             sum(len(item["movimentacoes"]) for item in source["registros"]))
             return 0
-        client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token())
+        client = IpeaIaClient(settings.ipeaia_base_url, settings.require_ipeaia_token(), timeout=timeout)
         for source in inputs:
+            LOGGER.info("Enviando %s a IpeaIA; modelo=%s, timeout=%gs. Aguardando resposta...",
+                        source["numero_processo"], model, timeout)
+            started = time.monotonic()
             result = client.classify(model, source)
             with store.Session.begin() as session:
                 target = session.query(Processo).filter_by(numero_processo=source["numero_processo"]).one()
@@ -332,7 +341,8 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
                     resultado=result,
                     status_validacao="pendente",
                 ))
-            LOGGER.info("Triagem pendente de revisão gravada: %s", source["numero_processo"])
+            LOGGER.info("Triagem pendente de revisão gravada: %s (%.1fs)",
+                        source["numero_processo"], time.monotonic() - started)
     finally:
         store.close()
     return 0

@@ -31,6 +31,7 @@ class Settings:
     ipeaia_base_url: str = "https://ipeagpt.ipea.gov.br/api/v1"
     ipeaia_api_token: str | None = None
     ipeaia_model: str = "glm-5.1"
+    ipeaia_timeout_seconds: float = 600
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -64,6 +65,7 @@ class Settings:
             ).rstrip("/"),
             ipeaia_api_token=os.getenv("IPEAIA_API_TOKEN"),
             ipeaia_model=os.getenv("IPEAIA_MODEL", "glm-5.1"),
+            ipeaia_timeout_seconds=float(os.getenv("IPEAIA_TIMEOUT_SECONDS", "600")),
         )
 
     def require_datajud_key(self) -> str:
