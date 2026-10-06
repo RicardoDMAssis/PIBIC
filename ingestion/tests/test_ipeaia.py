@@ -1,10 +1,13 @@
 import io
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from urllib.error import URLError
 
-from bpc_ingestion.ipeaia import IpeaIaClient, PROMPT_VERSION, build_input, validate_result
+from bpc_ingestion.ipeaia import (IpeaIaClient, PROMPT_VERSION, RejectedIpeaResponse,
+                                build_input, save_rejected_response, validate_result)
 
 
 class IpeaIaTest(unittest.TestCase):
@@ -92,6 +95,51 @@ class IpeaIaTest(unittest.TestCase):
         for timeout in (0, -1, float("inf"), float("nan")):
             with self.assertRaises(ValueError):
                 IpeaIaClient("https://example.test", "segredo", timeout=timeout)
+
+    def test_diagnostico_detalha_evidencia_invalida(self):
+        evidence = self.result["evidencias"][0]
+        cases = [
+            (None, "evidencias\\[0\\]: deve ser objeto"),
+            (dict(evidence, fonte="DataJud"), "campos extras=.*fonte"),
+            (dict(evidence, registro_id="7"), "registro_id: recebido='7'.*ID inteiro"),
+            (dict(evidence, registro_id=999), "registro_id: recebido=999.*\\[7\\]"),
+            (dict(evidence, registro_id=[7]), "registro_id"),
+            (dict(evidence, campo=["assuntos"]), "campo: recebido"),
+            (dict(evidence, referencia=11946), "referencia: deve ser texto"),
+            (dict(evidence, sustenta=None), "sustenta: deve ser texto"),
+        ]
+        for invalid, message in cases:
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_result(dict(self.result, evidencias=[invalid]), self.source)
+
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_preserva_resposta_rejeitada_e_salva_sem_token(self, open_url):
+        invalid = dict(self.result, evidencias=[dict(self.result["evidencias"][0], registro_id=999)])
+        response = {"choices": [{"message": {"content": json.dumps(invalid)}}], "extra": "segredo"}
+        open_url.return_value.__enter__.return_value = io.BytesIO(json.dumps(response).encode())
+        client = IpeaIaClient("https://example.test", "segredo", interval=0)
+        with self.assertRaisesRegex(RejectedIpeaResponse, "registro_id") as caught:
+            client.classify("modelo", self.source)
+        self.assertEqual(caught.exception.response, response)
+        with TemporaryDirectory() as directory:
+            path = save_rejected_response(caught.exception, self.source, "modelo", client.token,
+                                          Path(directory) / "rejeitadas")
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("segredo", text)
+            diagnostic = json.loads(text)
+            self.assertEqual(diagnostic["entrada"], self.source)
+            self.assertEqual(diagnostic["modelo"], "modelo")
+            self.assertEqual(json.loads(diagnostic["resposta_api"]["choices"][0]["message"]["content"]), invalid)
+        self.assertEqual(open_url.call_count, 1)
+
+    @patch("bpc_ingestion.ipeaia.urlopen")
+    def test_preserva_resposta_sem_json_valido(self, open_url):
+        response = {"choices": [{"message": {"content": "texto, não JSON"}}]}
+        open_url.return_value.__enter__.return_value = io.BytesIO(json.dumps(response).encode())
+        with self.assertRaises(RejectedIpeaResponse) as caught:
+            IpeaIaClient("https://example.test", "segredo", interval=0).classify("modelo", self.source)
+        self.assertEqual(caught.exception.response, response)
 
 
 if __name__ == "__main__":

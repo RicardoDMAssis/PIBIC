@@ -13,6 +13,7 @@ from bpc_ingestion import api
 from bpc_ingestion.cli import ipeaia_triage
 from bpc_ingestion.config import Settings
 from bpc_ingestion.database import make_engine
+from bpc_ingestion.ipeaia import RejectedIpeaResponse, pending_processes, save_rejected_response
 from bpc_ingestion.models import Base, ExtracaoIa, Processo, RegistroDatajud
 from bpc_ingestion.portable import export_package, initialize
 
@@ -60,10 +61,26 @@ class PortableDatabaseTest(unittest.TestCase):
                         self.assertEqual(response.status_code, 200)
                         self.assertEqual(response.json()["total"], 1)
                         self.assertEqual(client.get(f"/admin/api/processos/{number}").status_code, 200)
+                    args = argparse.Namespace(limit=1, model=None, max_movimentos=100, executar=True, timeout=None)
+                    settings = Settings(database_url=url, ipeaia_api_token="test")
+                    rejected = RejectedIpeaResponse("evidencias[0].registro_id: inválido", {"choices": []})
+                    diagnostics = Path(work) / "rejeitadas"
+                    with patch("bpc_ingestion.cli.IpeaIaClient") as client, patch(
+                        "bpc_ingestion.cli.save_rejected_response",
+                        side_effect=lambda error, data, model, token: save_rejected_response(
+                            error, data, model, token, diagnostics),
+                    ):
+                        client.return_value.token = "test"
+                        client.return_value.classify.side_effect = rejected
+                        with self.assertRaisesRegex(RuntimeError, "Nenhuma extração gravada.*Diagnóstico"):
+                            ipeaia_triage(args, settings)
+                    self.assertEqual(len(list(diagnostics.glob("*.json"))), 1)
+                    with Session(db) as session:
+                        self.assertIsNone(session.scalar(select(ExtracaoIa)))
+                        self.assertEqual(len(pending_processes(session, settings.ipeaia_model, 1)), 1)
                     with patch("bpc_ingestion.cli.IpeaIaClient") as client:
                         client.return_value.classify.return_value = {"desfecho": "indeterminado"}
-                        args = argparse.Namespace(limit=1, model=None, max_movimentos=100, executar=True, timeout=None)
-                        ipeaia_triage(args, Settings(database_url=url, ipeaia_api_token="test"))
+                        ipeaia_triage(args, settings)
                     with Session(db) as session:
                         row = session.scalar(select(ExtracaoIa))
                         self.assertGreater(row.id, 0)

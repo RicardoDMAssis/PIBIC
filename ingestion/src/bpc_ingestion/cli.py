@@ -18,7 +18,8 @@ from .datajud import (
     DatajudClient, normalizar_hit, normalizar_processo, query_fingerprint, query_manifest,
 )
 from .inss import InssCatalogClient
-from .ipeaia import IpeaIaClient, PROMPT_VERSION, load_process_input, pending_processes
+from .ipeaia import (IpeaIaClient, PROMPT_VERSION, RejectedIpeaResponse,
+                    load_process_input, pending_processes, save_rejected_response)
 from .models import ExtracaoIa, Processo
 from .persistence import agora_iso
 from .postgres_store import PostgresStore
@@ -330,7 +331,16 @@ def ipeaia_triage(args: argparse.Namespace, settings: Settings) -> int:
             LOGGER.info("Enviando %s a IpeaIA; modelo=%s, timeout=%gs. Aguardando resposta...",
                         source["numero_processo"], model, timeout)
             started = time.monotonic()
-            result = client.classify(model, source)
+            try:
+                result = client.classify(model, source)
+            except RejectedIpeaResponse as exc:
+                try:
+                    diagnostic = save_rejected_response(exc, source, model, client.token)
+                except OSError as save_error:
+                    raise RuntimeError(f"Resposta rejeitada: {exc}. Nenhuma extração gravada. "
+                                       f"Falha ao salvar diagnóstico: {save_error}") from exc
+                raise RuntimeError(f"Resposta rejeitada: {exc}. Nenhuma extração gravada "
+                                   f"para este processo. Diagnóstico: {diagnostic}") from exc
             with store.Session.begin() as session:
                 target = session.query(Processo).filter_by(numero_processo=source["numero_processo"]).one()
                 session.add(ExtracaoIa(

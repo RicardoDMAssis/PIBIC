@@ -73,6 +73,15 @@ mensagem específica e não repete automaticamente a geração. Erros de rede
 mostram a causa (por exemplo, certificado ou DNS). Atualize o código remoto
 com `git pull` e `python -m pip install ./ingestion` antes de usar a nova opção.
 
+## Diagnóstico de respostas rejeitadas
+
+Se a resposta for rejeitada, o comando mostra o campo e o índice da evidência
+inválida e salva um diagnóstico em `data/ipeaia_rejeitadas/<id>.json`. O arquivo
+contém a entrada enviada, modelo, versão do prompt, erro e resposta da API,
+sem token. Ele fica fora do Git. A resposta inválida não entra em `extracoes_ia`;
+o processo permanece pendente para nova tentativa. Não há repetição automática.
+Este diagnóstico de formato não substitui a revisão humana dos fatos citados.
+
 ## Atualizar a cópia no futuro
 
 A origem PostgreSQL permanece na máquina local. O módulo

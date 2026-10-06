@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import math
 import time
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -50,6 +52,31 @@ OUTPUT_KEYS = {
 }
 
 
+class RejectedIpeaResponse(ValueError):
+    """Resposta recebida, mas rejeitada; preserva dados para diagnóstico local."""
+
+    def __init__(self, message: str, response: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.response = response
+
+
+def save_rejected_response(error: RejectedIpeaResponse, source: dict[str, Any],
+                           model: str, token: str,
+                           directory: Path = Path("data/ipeaia_rejeitadas")) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{uuid4().hex}.json"
+    diagnostic = json.dumps({
+        "modelo": model, "versao_prompt": PROMPT_VERSION,
+        "erro": str(error), "entrada": source, "resposta_api": error.response,
+    }, ensure_ascii=False, indent=2)
+    # Nunca registrar o token, mesmo se o servidor o repetir na resposta.
+    if token:
+        diagnostic = diagnostic.replace(json.dumps(token, ensure_ascii=False)[1:-1], "[TOKEN]")
+    with path.open("x", encoding="utf-8") as output:
+        output.write(diagnostic)
+    return path
+
+
 def build_input(number: str, records: list[dict[str, Any]], max_movements: int = 100) -> dict[str, Any]:
     if max_movements < 2:
         raise ValueError("max_movements deve ser pelo menos 2")
@@ -90,13 +117,25 @@ def validate_result(result: Any, source: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(result["evidencias"], list):
         raise ValueError("Evidências devem ser lista")
     record_ids = {record["registro_id"] for record in source["registros"]}
-    for evidence in result["evidencias"]:
-        if (not isinstance(evidence, dict) or set(evidence) != {"registro_id", "campo", "referencia", "sustenta"}
-                or evidence["registro_id"] not in record_ids
-                or evidence["campo"] not in {"assuntos", "movimentacoes", "classe", "orgao_julgador"}
-                or not isinstance(evidence["referencia"], str)
-                or not isinstance(evidence["sustenta"], str)):
-            raise ValueError("Evidência inválida ou registro inexistente")
+    for index, evidence in enumerate(result["evidencias"]):
+        prefix = f"evidencias[{index}]"
+        if not isinstance(evidence, dict):
+            raise ValueError(f"{prefix}: deve ser objeto JSON")
+        expected = {"registro_id", "campo", "referencia", "sustenta"}
+        if set(evidence) != expected:
+            raise ValueError(f"{prefix}: campos ausentes={sorted(expected - set(evidence))}; "
+                             f"campos extras={sorted(set(evidence) - expected)}")
+        if type(evidence["registro_id"]) is not int or evidence["registro_id"] not in record_ids:
+            raise ValueError(f"{prefix}.registro_id: recebido={evidence['registro_id']!r}; "
+                             f"use um ID inteiro da entrada: {sorted(record_ids)}")
+        allowed = {"assuntos", "movimentacoes", "classe", "orgao_julgador"}
+        if not isinstance(evidence["campo"], str) or evidence["campo"] not in allowed:
+            raise ValueError(f"{prefix}.campo: recebido={evidence['campo']!r}; "
+                             f"permitidos={sorted(allowed)}")
+        for field in ("referencia", "sustenta"):
+            if not isinstance(evidence[field], str):
+                raise ValueError(f"{prefix}.{field}: deve ser texto; "
+                                 f"recebido tipo {type(evidence[field]).__name__}")
     return result
 
 
@@ -181,8 +220,11 @@ class IpeaIaClient:
                 )
             result = json.loads(content)
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            raise RuntimeError("Resposta IpeaIA não contém JSON válido") from exc
-        return validate_result(result, source)
+            raise RejectedIpeaResponse("Resposta IpeaIA não contém JSON válido", response) from exc
+        try:
+            return validate_result(result, source)
+        except (ValueError, TypeError) as exc:
+            raise RejectedIpeaResponse(str(exc), response) from exc
 
 
 def pending_processes(session: Session, model: str, limit: int) -> list[Processo]:

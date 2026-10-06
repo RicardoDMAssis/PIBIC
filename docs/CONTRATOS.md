@@ -122,6 +122,12 @@ processo, tipo, modelo e versão do prompt é única; uma nova metodologia reque
 nova versão, não sobrescrita silenciosa. A classificação não está validada até
 revisão humana.
 
+Respostas IpeaIA rejeitadas não são persistidas em `extracoes_ia`. Para diagnóstico,
+o CLI salva em `data/ipeaia_rejeitadas/<id>.json` a entrada enviada, modelo,
+versão do prompt, erro e resposta da API (token removido). Os arquivos ficam
+fora do Git; não são classificações nem registros Bronze imutáveis. O processo
+continua pendente. O prompt e o schema de resultados permanecem na versão v1.0.
+
 ## Regras de qualidade
 
 - Datas normalizadas em UTC;
@@ -140,4 +146,5 @@ revisão humana.
 
 | Data | Decisão | Consequência |
 | --- | --- | --- |
+| 05/10/2026 | Detalhar falhas de evidências e conservar respostas IpeaIA rejeitadas em diagnóstico local sem token. | Não aceitar IDs externos à entrada nem formatos inválidos; nenhuma extração gravada para o processo rejeitado e nenhuma repetição automática. Sem alteração do schema ou da metodologia. |
 | 05/10/2026 | Usar cópia SQLite no servidor remoto sem Docker; manter PostgreSQL na origem. | Mesmas tabelas e dados da aplicação; extrações de IA persistidas em `data/bpc-remote.sqlite`. Embeddings armazenados como JSON, sem busca pgvector nesse ambiente. |
